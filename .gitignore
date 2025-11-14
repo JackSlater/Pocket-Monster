@@ -1,3 +1,4 @@
+# Unity generated folders (do NOT commit)
 Library/
 Temp/
 Obj/
@@ -6,4 +7,17 @@ UserSettings/
 MemoryCaptures/
 Build/
 Builds/
+Records/
+CrashReports/
+
+# Unity cache
 Library/PackageCache/
+
+# Rider / VS / VSCode
+.vs/
+.vscode/
+.idea/
+
+# OS junk
+.DS_Store
+Thumbs.db
