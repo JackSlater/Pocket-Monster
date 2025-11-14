@@ -9,6 +9,10 @@ public class BuildingManager : MonoBehaviour
     [Header("Buildings")]
     public List<Building> buildings = new List<Building>();
 
+    [Header("Consumption")]
+    public float buildingEffortPerBuilding = 2f;
+    public float infrastructureSupportPerBuilding = 1.25f;
+
     private void Start()
     {
         if (productivityManager == null)
@@ -20,7 +24,30 @@ public class BuildingManager : MonoBehaviour
 
     private void Update()
     {
-        // For now we do nothing here.
-        // We’ll add more logic later once everything compiles.
+        if (GameManager.Instance != null && GameManager.Instance.isGameOver)
+            return;
+
+        if (productivityManager == null || buildings.Count == 0)
+            return;
+
+        float deltaTime = Time.deltaTime;
+        float totalBuildingRequest = buildingEffortPerBuilding * buildings.Count * deltaTime;
+        float totalInfrastructureRequest = infrastructureSupportPerBuilding * buildings.Count * deltaTime;
+
+        float availableBuildingEffort = productivityManager.ConsumeBuildingProgress(totalBuildingRequest);
+        float availableInfrastructureSupport = productivityManager.ConsumeInfrastructureProgress(totalInfrastructureRequest);
+
+        float perBuildingEffort = buildings.Count > 0 ? availableBuildingEffort / buildings.Count : 0f;
+        float perBuildingInfrastructure = buildings.Count > 0 ? availableInfrastructureSupport / buildings.Count : 0f;
+
+        ProductivityBand band = productivityManager.GetBand();
+
+        foreach (var building in buildings)
+        {
+            if (building == null)
+                continue;
+
+            building.Tick(perBuildingEffort, perBuildingInfrastructure, deltaTime, band);
+        }
     }
 }
