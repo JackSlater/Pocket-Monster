@@ -6,23 +6,39 @@ public class Villager : MonoBehaviour
     public PersonState currentState = PersonState.Working;
 
     [Header("Movement")]
-    [Tooltip("How fast the villager walks towards a building.")]
-    public float moveSpeed = 1.5f;
+    [Tooltip("Average movement speed; each villager will randomize around this.")]
+    public float baseMoveSpeed = 1.5f;
+
+    [Tooltip("How much individual move speed can vary (+/-).")]
+    public float moveSpeedVariation = 0.75f;
 
     [Tooltip("Distance at which we consider the villager to be 'at' the building.")]
-    public float closeEnoughDistance = 0.05f;
+    public float closeEnoughDistance = 0.15f;
 
     [Header("Construction Contribution")]
-    [Tooltip("How much extra construction effort this villager contributes per second when working.")]
+    [Tooltip("How much construction effort this villager contributes per second when working.")]
     public float workEffortPerSecond = 10f;
 
-    private Building currentTargetBuilding;
+    [Tooltip("Horizontal offset from the center of the building when working.")]
+    public float workOffsetDistance = 0.4f;
+
+    [Tooltip("Vertical jitter when choosing a work offset.")]
+    public float workOffsetVerticalJitter = 0.1f;
+
+    [Header("Visual Variety")]
+    [Tooltip("How much villager height can vary (+/- as a fraction).")]
+    public float heightVariation = 0.2f;
 
     [Header("References")]
     public Animator animator;              // optional
     public SpriteRenderer spriteRenderer;  // required
     public BuildingManager buildingManager;
     public ProductivityManager productivityManager;
+
+    // --- private runtime fields ---
+    private float actualMoveSpeed;
+    private Building currentTargetBuilding;
+    private Vector3 currentWorkOffset;
 
     private void Reset()
     {
@@ -39,6 +55,16 @@ public class Villager : MonoBehaviour
 
         if (productivityManager == null)
             productivityManager = FindObjectOfType<ProductivityManager>();
+
+        // Randomize movement speed per villager
+        float randomized = baseMoveSpeed + Random.Range(-moveSpeedVariation, moveSpeedVariation);
+        actualMoveSpeed = Mathf.Max(0.1f, randomized);  // avoid zero/negative
+
+        // Randomize height (scale Y) per villager
+        Vector3 scale = transform.localScale;
+        float heightFactor = 1f + Random.Range(-heightVariation, heightVariation);
+        scale.y *= Mathf.Max(0.1f, heightFactor);
+        transform.localScale = scale;
 
         UpdateVisuals();
     }
@@ -61,6 +87,7 @@ public class Villager : MonoBehaviour
         if (currentTargetBuilding == null || currentTargetBuilding.currentState != BuildingState.UnderConstruction)
         {
             currentTargetBuilding = FindNearestUnderConstructionBuilding();
+            AssignWorkOffsetForCurrentBuilding();
         }
 
         if (currentTargetBuilding == null)
@@ -70,15 +97,15 @@ public class Villager : MonoBehaviour
             return;
         }
 
-        // Move toward the target building
-        Vector3 targetPos = currentTargetBuilding.transform.position;
+        // Move toward the target building + our personal offset
+        Vector3 targetPos = currentTargetBuilding.transform.position + currentWorkOffset;
         Vector3 delta = targetPos - transform.position;
         float dist = delta.magnitude;
 
         if (dist > closeEnoughDistance)
         {
             Vector3 dir = delta.normalized;
-            transform.position += dir * moveSpeed * dt;
+            transform.position += dir * actualMoveSpeed * dt;
             SetState(PersonState.ShiftingAttention);   // walking to work
         }
         else
@@ -140,6 +167,25 @@ public class Villager : MonoBehaviour
         return best;
     }
 
+    /// <summary>
+    /// Pick a side & slight vertical jitter for where THIS villager stands relative to its current target.
+    /// This makes them appear on both sides of the building instead of stacking perfectly.
+    /// </summary>
+    private void AssignWorkOffsetForCurrentBuilding()
+    {
+        if (currentTargetBuilding == null)
+        {
+            currentWorkOffset = Vector3.zero;
+            return;
+        }
+
+        float side = Random.value < 0.5f ? -1f : 1f; // left or right
+        float xOffset = side * workOffsetDistance;
+        float yOffset = Random.Range(-workOffsetVerticalJitter, workOffsetVerticalJitter);
+
+        currentWorkOffset = new Vector3(xOffset, yOffset, 0f);
+    }
+
     // ----------------- STATE / VISUALS -----------------
 
     public void SetState(PersonState newState)
@@ -159,8 +205,6 @@ public class Villager : MonoBehaviour
         switch (band)
         {
             case ProductivityBand.Thriving:
-                // Let the movement/working logic handle exact state,
-                // but nudge away from Idle.
                 if (currentState == PersonState.Idle)
                     SetState(PersonState.Working);
                 break;
@@ -189,7 +233,7 @@ public class Villager : MonoBehaviour
         switch (currentState)
         {
             case PersonState.Working:
-                spriteRenderer.color = Color.green;
+                spriteRenderer.color = Color.red;   // working = red, as you asked earlier
                 break;
             case PersonState.ShiftingAttention:
                 spriteRenderer.color = Color.yellow;
@@ -201,7 +245,7 @@ public class Villager : MonoBehaviour
                 spriteRenderer.color = Color.gray;
                 break;
             case PersonState.Destructive:
-                spriteRenderer.color = Color.red;
+                spriteRenderer.color = Color.black;
                 break;
         }
     }

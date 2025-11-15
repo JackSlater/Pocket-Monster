@@ -1861,9 +1861,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: '::'
   buildings:
   - {fileID: 8820663335598381384, guid: aaef10bd700edbe4aa3589939b40503c, type: 3}
-  productivityManager: {fileID: 2051202937}
-  maxConsumePerSecond: 50
-  constructionEffortPerSecond: 30
   buildingPrefab: {fileID: 8820663335598381384, guid: aaef10bd700edbe4aa3589939b40503c, type: 3}
   spawnPoints:
   - {fileID: 1537838064}
@@ -1884,6 +1881,10 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: '::'
   productivityManager: {fileID: 2051202937}
+  villagerPrefab: {fileID: 2209283127405161960, guid: 759cdbd63ee97f1488304c0212a88af4, type: 3}
+  initialVillagerCount: 20
+  spawnAreaCenter: {x: 0, y: 0}
+  spawnAreaSize: {x: 8, y: 4}
   villagers:
   - {fileID: 2209283127405161960, guid: 759cdbd63ee97f1488304c0212a88af4, type: 3}
   stateUpdateInterval: 1.5
@@ -2032,6 +2033,10 @@ PrefabInstance:
     - target: {fileID: 2309048044552605318, guid: 759cdbd63ee97f1488304c0212a88af4, type: 3}
       propertyPath: m_Color.r
       value: 0.015686274
+      objectReference: {fileID: 0}
+    - target: {fileID: 2309048044552605318, guid: 759cdbd63ee97f1488304c0212a88af4, type: 3}
+      propertyPath: m_SortingOrder
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 6171971367218138588, guid: 759cdbd63ee97f1488304c0212a88af4, type: 3}
       propertyPath: m_Name

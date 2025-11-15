@@ -90,4 +90,10 @@ public class Building : MonoBehaviour
         constructionProgress = 0f;
         UpdateVisuals();
     }
+    public void InitializeAsNewConstruction()
+    {
+        currentState = BuildingState.UnderConstruction;
+        constructionProgress = 0f;
+        UpdateVisuals();
+    }
 }
