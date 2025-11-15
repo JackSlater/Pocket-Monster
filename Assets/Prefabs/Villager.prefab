@@ -169,5 +169,10 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Villager
   currentState: 0
+  moveSpeed: 1.5
+  closeEnoughDistance: 0.05
+  workEffortPerSecond: 10
   animator: {fileID: 0}
   spriteRenderer: {fileID: 2309048044552605318}
+  buildingManager: {fileID: 0}
+  productivityManager: {fileID: 0}

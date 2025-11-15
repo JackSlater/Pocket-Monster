@@ -769,6 +769,37 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 428662057}
   m_CullTransparentMesh: 1
+--- !u!1 &610459719
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 610459720}
+  m_Layer: 0
+  m_Name: BuildingSpot4
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &610459720
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 610459719}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: -6, y: -0.5, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &648199446
 GameObject:
   m_ObjectHideFlags: 0
@@ -1838,6 +1869,7 @@ MonoBehaviour:
   - {fileID: 1537838064}
   - {fileID: 648199447}
   - {fileID: 19697983}
+  - {fileID: 610459720}
   targetUnderConstructionCount: 1
 --- !u!114 &2051202936
 MonoBehaviour:
@@ -1973,6 +2005,22 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 2209283127405161960, guid: 759cdbd63ee97f1488304c0212a88af4, type: 3}
+      propertyPath: moveSpeed
+      value: 3
+      objectReference: {fileID: 0}
+    - target: {fileID: 2209283127405161960, guid: 759cdbd63ee97f1488304c0212a88af4, type: 3}
+      propertyPath: buildingManager
+      value: 
+      objectReference: {fileID: 2051202935}
+    - target: {fileID: 2209283127405161960, guid: 759cdbd63ee97f1488304c0212a88af4, type: 3}
+      propertyPath: closeEnoughDistance
+      value: 0.1
+      objectReference: {fileID: 0}
+    - target: {fileID: 2209283127405161960, guid: 759cdbd63ee97f1488304c0212a88af4, type: 3}
+      propertyPath: productivityManager
+      value: 
+      objectReference: {fileID: 2051202937}
     - target: {fileID: 2309048044552605318, guid: 759cdbd63ee97f1488304c0212a88af4, type: 3}
       propertyPath: m_Color.b
       value: 1
@@ -2099,3 +2147,4 @@ SceneRoots:
   - {fileID: 1537838064}
   - {fileID: 648199447}
   - {fileID: 19697983}
+  - {fileID: 610459720}
