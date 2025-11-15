@@ -8,142 +8,93 @@ public class Building : MonoBehaviour
     [Header("Construction")]
     public float constructionRequirement = 100f;
     public float constructionProgress = 0f;
-    public float constructionDecayPerSecond = 0.5f;
 
-    [Header("Maintenance")]
-    public float maxHealth = 100f;
-    public float currentHealth = 50f;
-    public float passiveDecayPerSecond = 1f;
-    public float infrastructureSupportMultiplier = 0.5f;
+    [Header("Visuals")]
+    public SpriteRenderer spriteRenderer;
+    public Vector3 minBuiltScale = new Vector3(1f, 0.2f, 1f);
+    public Vector3 maxBuiltScale = new Vector3(1f, 1f, 1f);
 
-    [Header("Productivity Influence")]
-    public float thrivingBonusPerSecond = 2f;
-    public float decliningPenaltyPerSecond = 1f;
-    public float collapsePenaltyPerSecond = 4f;
+    public Color underConstructionColor = Color.gray;
+    public Color finishedColor = Color.green;
 
-    public bool IsConstructed => currentState != BuildingState.UnderConstruction;
-
-    public void Tick(float buildingEffort, float infrastructureSupport, float deltaTime, ProductivityBand productivityBand)
+    private void Awake()
     {
+        if (spriteRenderer == null)
+            spriteRenderer = GetComponent<SpriteRenderer>();
+
+        UpdateVisuals();
+    }
+
+    /// <summary>
+    /// Called every frame by BuildingManager.
+    /// </summary>
+    public void Tick(float buildingEffort, float infrastructureSupport, float deltaTime, ProductivityBand band)
+    {
+        // Only care about construction for now.
         if (currentState == BuildingState.Destroyed)
-            return;
-
-        ApplyProductivityInfluence(productivityBand, deltaTime);
-
-        if (currentState == BuildingState.UnderConstruction)
         {
-            ApplyConstruction(buildingEffort, deltaTime);
-        }
-        else
-        {
-            MaintainStructure(buildingEffort, infrastructureSupport, deltaTime);
-        }
-    }
-
-    private void ApplyConstruction(float buildingEffort, float deltaTime)
-    {
-        if (constructionRequirement <= 0f)
-        {
-            CompleteConstruction();
+            UpdateVisuals();
             return;
         }
 
-        if (constructionDecayPerSecond > 0f)
-        {
-            constructionProgress = Mathf.Max(0f, constructionProgress - constructionDecayPerSecond * deltaTime);
-        }
-
-        constructionProgress += buildingEffort;
-        if (constructionProgress >= constructionRequirement)
-        {
-            CompleteConstruction();
-        }
-    }
-
-    private void CompleteConstruction()
-    {
-        currentState = BuildingState.Thriving;
-        constructionProgress = constructionRequirement;
-        currentHealth = Mathf.Clamp(maxHealth * 0.75f, 0f, maxHealth);
-    }
-
-    private void MaintainStructure(float buildingEffort, float infrastructureSupport, float deltaTime)
-    {
-        float totalSupport = buildingEffort + (infrastructureSupport * infrastructureSupportMultiplier);
-
-        if (passiveDecayPerSecond > 0f)
-        {
-            currentHealth = Mathf.Max(0f, currentHealth - passiveDecayPerSecond * deltaTime);
-        }
-
-        currentHealth = Mathf.Clamp(currentHealth + totalSupport, 0f, maxHealth);
-        UpdateStateFromHealth();
-    }
-
-    private void ApplyProductivityInfluence(ProductivityBand band, float deltaTime)
-    {
-        float delta = 0f;
-
-        switch (band)
-        {
-            case ProductivityBand.Thriving:
-                delta = thrivingBonusPerSecond;
-                break;
-            case ProductivityBand.Declining:
-                delta = -decliningPenaltyPerSecond;
-                break;
-            case ProductivityBand.Collapse:
-                delta = -collapsePenaltyPerSecond;
-                break;
-        }
-
-        delta *= deltaTime;
-
         if (currentState == BuildingState.UnderConstruction)
         {
-            constructionProgress = Mathf.Clamp(constructionProgress + delta, 0f, constructionRequirement);
+            // Add effort – ignore band/decay/etc. for now
+            constructionProgress += buildingEffort;
+            constructionProgress = Mathf.Clamp(constructionProgress, 0f, constructionRequirement);
+
             if (constructionProgress >= constructionRequirement)
-                CompleteConstruction();
+            {
+                constructionProgress = constructionRequirement;
+                currentState = BuildingState.Thriving; // treat as "finished"
+            }
         }
-        else
-        {
-            currentHealth = Mathf.Clamp(currentHealth + delta, 0f, maxHealth);
-            UpdateStateFromHealth();
-        }
+
+        UpdateVisuals();
     }
 
-    private void UpdateStateFromHealth()
+    private void UpdateVisuals()
     {
-        if (currentState == BuildingState.Destroyed)
-            return;
+        // 0–1 how far along construction is
+        float build01 = constructionRequirement > 0f
+            ? Mathf.Clamp01(constructionProgress / constructionRequirement)
+            : 1f;
 
-        if (currentHealth >= maxHealth * 0.75f)
-        {
-            currentState = BuildingState.Thriving;
-        }
-        else if (currentHealth >= maxHealth * 0.4f)
-        {
-            currentState = BuildingState.Declining;
-        }
-        else if (currentHealth > 0f)
-        {
-            currentState = BuildingState.Ruined;
-        }
-        else
-        {
-            ForceCollapse();
-        }
+        // Scale based on progress
+        transform.localScale = Vector3.Lerp(minBuiltScale, maxBuiltScale, build01);
+
+        if (spriteRenderer == null) return;
+
+        // Color: gray while building, green when done
+        spriteRenderer.color = currentState == BuildingState.UnderConstruction
+            ? underConstructionColor
+            : finishedColor;
     }
 
-    public void UpdateStateFromProductivity(ProductivityBand band)
-    {
-        ApplyProductivityInfluence(band, Time.deltaTime);
-    }
-
+    // NOTE: only ONE ForceCollapse definition here.
     public void ForceCollapse()
     {
         currentState = BuildingState.Destroyed;
-        currentHealth = 0f;
-        Debug.Log($"{buildingName} has collapsed.");
+        constructionProgress = 0f;
+        UpdateVisuals();
+    }
+    private void Update()
+    {
+        // TEMP: ignore managers, just grow at a fixed rate
+        float dt = Time.deltaTime;
+
+        if (currentState == BuildingState.UnderConstruction)
+        {
+            constructionProgress += 30f * dt;   // 30 progress per second
+            constructionProgress = Mathf.Clamp(constructionProgress, 0f, constructionRequirement);
+
+            if (constructionProgress >= constructionRequirement)
+            {
+                constructionProgress = constructionRequirement;
+                currentState = BuildingState.Thriving;
+            }
+
+            UpdateVisuals();
+        }
     }
 }

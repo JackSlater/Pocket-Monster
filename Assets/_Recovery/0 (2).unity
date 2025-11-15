@@ -1156,11 +1156,6 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1069155010}
   m_CullTransparentMesh: 1
---- !u!212 &1094439245 stripped
-SpriteRenderer:
-  m_CorrespondingSourceObject: {fileID: 7370120343032930781, guid: aaef10bd700edbe4aa3589939b40503c, type: 3}
-  m_PrefabInstance: {fileID: 6627937740989074281}
-  m_PrefabAsset: {fileID: 0}
 --- !u!1 &1316268975
 GameObject:
   m_ObjectHideFlags: 0
@@ -1603,14 +1598,14 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4b3f4c14343233d45b67afcaf0d3c61c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::UIManager
-  productivityManager: {fileID: 2051202937}
-  gameManager: {fileID: 2051202938}
-  timeText: {fileID: 1603660715}
-  statusText: {fileID: 1069155012}
+  productivityManager: {fileID: 0}
+  gameManager: {fileID: 0}
+  timeText: {fileID: 0}
+  statusText: {fileID: 0}
   productivitySlider: {fileID: 0}
   productivityText: {fileID: 0}
-  gameOverPanel: {fileID: 428662057}
-  finalTimeText: {fileID: 59980902}
+  gameOverPanel: {fileID: 0}
+  finalTimeText: {fileID: 0}
   bestTimeText: {fileID: 0}
 --- !u!114 &2051202934
 MonoBehaviour:
@@ -1624,9 +1619,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 8235c10e60379e54aa9c0a70ffcb58e5, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PhoneDropManager
-  productivityManager: {fileID: 2051202937}
+  productivityManager: {fileID: 0}
   phonePrefab: {fileID: 7567680274285270222, guid: 1d86ea5dc0272304d8bad2d9f9bae4a8, type: 3}
-  mainCamera: {fileID: 330585545}
+  mainCamera: {fileID: 0}
   spawnHeight: 5
   phoneLifetime: 5
 --- !u!114 &2051202935
@@ -1641,9 +1636,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f2d6d66e4f14b2144973ff4c3951a4be, type: 3}
   m_Name: 
   m_EditorClassIdentifier: '::'
+  productivityManager: {fileID: 2051202937}
   buildings:
   - {fileID: 8820663335598381384, guid: aaef10bd700edbe4aa3589939b40503c, type: 3}
-  constructionEffortPerSecond: 30
+  buildingEffortPerBuilding: 2
+  infrastructureSupportPerBuilding: 1.25
 --- !u!114 &2051202936
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1778,18 +1775,6 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
-    - target: {fileID: 2309048044552605318, guid: 759cdbd63ee97f1488304c0212a88af4, type: 3}
-      propertyPath: m_Color.b
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 2309048044552605318, guid: 759cdbd63ee97f1488304c0212a88af4, type: 3}
-      propertyPath: m_Color.g
-      value: 0.1335534
-      objectReference: {fileID: 0}
-    - target: {fileID: 2309048044552605318, guid: 759cdbd63ee97f1488304c0212a88af4, type: 3}
-      propertyPath: m_Color.r
-      value: 0.015686274
-      objectReference: {fileID: 0}
     - target: {fileID: 6171971367218138588, guid: 759cdbd63ee97f1488304c0212a88af4, type: 3}
       propertyPath: m_Name
       value: Villager
@@ -1810,18 +1795,6 @@ PrefabInstance:
     - target: {fileID: 893014648387280030, guid: aaef10bd700edbe4aa3589939b40503c, type: 3}
       propertyPath: m_Name
       value: Building
-      objectReference: {fileID: 0}
-    - target: {fileID: 7094158895442725001, guid: aaef10bd700edbe4aa3589939b40503c, type: 3}
-      propertyPath: m_LocalScale.x
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 7094158895442725001, guid: aaef10bd700edbe4aa3589939b40503c, type: 3}
-      propertyPath: m_LocalScale.y
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 7094158895442725001, guid: aaef10bd700edbe4aa3589939b40503c, type: 3}
-      propertyPath: m_LocalScale.z
-      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 7094158895442725001, guid: aaef10bd700edbe4aa3589939b40503c, type: 3}
       propertyPath: m_LocalPosition.x
@@ -1861,26 +1834,6 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 7094158895442725001, guid: aaef10bd700edbe4aa3589939b40503c, type: 3}
       propertyPath: m_LocalEulerAnglesHint.z
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 7094158895442725001, guid: aaef10bd700edbe4aa3589939b40503c, type: 3}
-      propertyPath: m_ConstrainProportionsScale
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 8820663335598381384, guid: aaef10bd700edbe4aa3589939b40503c, type: 3}
-      propertyPath: currentState
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 8820663335598381384, guid: aaef10bd700edbe4aa3589939b40503c, type: 3}
-      propertyPath: currentHealth
-      value: 50
-      objectReference: {fileID: 0}
-    - target: {fileID: 8820663335598381384, guid: aaef10bd700edbe4aa3589939b40503c, type: 3}
-      propertyPath: spriteRenderer
-      value: 
-      objectReference: {fileID: 1094439245}
-    - target: {fileID: 8820663335598381384, guid: aaef10bd700edbe4aa3589939b40503c, type: 3}
-      propertyPath: constructionProgress
       value: 0
       objectReference: {fileID: 0}
     m_RemovedComponents: []
