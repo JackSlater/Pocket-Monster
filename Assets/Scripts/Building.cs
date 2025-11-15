@@ -25,12 +25,23 @@ public class Building : MonoBehaviour
         UpdateVisuals();
     }
 
+    private void Start()
+    {
+        // Auto-register with the BuildingManager at runtime
+        BuildingManager manager = FindObjectOfType<BuildingManager>();
+        if (manager != null)
+        {
+            manager.RegisterBuilding(this);
+        }
+    }
+
     /// <summary>
-    /// Called every frame by BuildingManager.
+    /// Called once per frame by BuildingManager.
+    /// buildingEffort is already scaled by deltaTime.
     /// </summary>
     public void Tick(float buildingEffort, float infrastructureSupport, float deltaTime, ProductivityBand band)
     {
-        // Only care about construction for now.
+        // If destroyed, it doesn’t build anymore
         if (currentState == BuildingState.Destroyed)
         {
             UpdateVisuals();
@@ -39,14 +50,16 @@ public class Building : MonoBehaviour
 
         if (currentState == BuildingState.UnderConstruction)
         {
-            // Add effort – ignore band/decay/etc. for now
-            constructionProgress += buildingEffort;
-            constructionProgress = Mathf.Clamp(constructionProgress, 0f, constructionRequirement);
-
-            if (constructionProgress >= constructionRequirement)
+            if (buildingEffort > 0f)
             {
-                constructionProgress = constructionRequirement;
-                currentState = BuildingState.Thriving; // treat as "finished"
+                constructionProgress += buildingEffort;
+                constructionProgress = Mathf.Clamp(constructionProgress, 0f, constructionRequirement);
+
+                if (constructionProgress >= constructionRequirement)
+                {
+                    constructionProgress = constructionRequirement;
+                    currentState = BuildingState.Thriving;
+                }
             }
         }
 
@@ -55,7 +68,7 @@ public class Building : MonoBehaviour
 
     private void UpdateVisuals()
     {
-        // 0–1 how far along construction is
+        // 0–1 progress
         float build01 = constructionRequirement > 0f
             ? Mathf.Clamp01(constructionProgress / constructionRequirement)
             : 1f;
@@ -71,30 +84,10 @@ public class Building : MonoBehaviour
             : finishedColor;
     }
 
-    // NOTE: only ONE ForceCollapse definition here.
     public void ForceCollapse()
     {
         currentState = BuildingState.Destroyed;
         constructionProgress = 0f;
         UpdateVisuals();
-    }
-    private void Update()
-    {
-        // TEMP: ignore managers, just grow at a fixed rate
-        float dt = Time.deltaTime;
-
-        if (currentState == BuildingState.UnderConstruction)
-        {
-            constructionProgress += 30f * dt;   // 30 progress per second
-            constructionProgress = Mathf.Clamp(constructionProgress, 0f, constructionRequirement);
-
-            if (constructionProgress >= constructionRequirement)
-            {
-                constructionProgress = constructionRequirement;
-                currentState = BuildingState.Thriving;
-            }
-
-            UpdateVisuals();
-        }
     }
 }
