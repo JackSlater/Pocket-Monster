@@ -5,6 +5,7 @@ public class PhoneDropManager : MonoBehaviour
 {
     [Header("References")]
     public ProductivityManager productivityManager;
+    public PopulationManager populationManager;
     public GameObject phonePrefab;          // assign the Phone prefab in Inspector
     public Camera mainCamera;               // optional; will use Camera.main if null
 
@@ -18,6 +19,9 @@ public class PhoneDropManager : MonoBehaviour
     {
         if (mainCamera == null)
             mainCamera = Camera.main;
+
+        if (populationManager == null)
+            populationManager = FindObjectOfType<PopulationManager>();
     }
 
     private void Update()
@@ -43,10 +47,11 @@ public class PhoneDropManager : MonoBehaviour
     private void TrySpawnPhoneAtClick()
     {
         if (phonePrefab == null || mainCamera == null)
-        {
-            Debug.LogWarning("PhoneDropManager: Missing phonePrefab or mainCamera.");
             return;
-        }
+
+        // If we only want one active phone at a time, bail if one exists
+        if (activePhone != null && activePhone.isActive)
+            return;
 
         // Convert mouse position to world position
         Vector3 screenPos = Input.mousePosition;
@@ -78,8 +83,17 @@ public class PhoneDropManager : MonoBehaviour
             productivityManager.ApplyPhoneDrop();
         }
 
-        // Auto-despawn after lifetime if not tapped
-        if (phoneLifetime > 0f)
+        // Tell the population that a phone has dropped
+        if (populationManager == null)
+            populationManager = FindObjectOfType<PopulationManager>();
+
+        if (populationManager != null && activePhone != null)
+        {
+            populationManager.OnPhoneDropped(activePhone);
+        }
+
+        // Start a lifetime timer
+        if (phoneLifetime > 0f && activePhone != null)
         {
             StartCoroutine(PhoneLifetimeRoutine(activePhone, phoneLifetime));
         }
@@ -104,6 +118,15 @@ public class PhoneDropManager : MonoBehaviour
         {
             activePhone = null;
         }
+
+        // Phone disappeared without being picked up → unfreeze villagers
+        if (populationManager == null)
+            populationManager = FindObjectOfType<PopulationManager>();
+
+        if (populationManager != null)
+        {
+            populationManager.OnPhoneCleared();
+        }
     }
 
     // Called by Phone.cs when the player taps the phone
@@ -117,7 +140,13 @@ public class PhoneDropManager : MonoBehaviour
             activePhone = null;
         }
 
-        // If you want, you could slightly reward / stabilize productivity here,
-        // but we won't call extra methods to avoid compile errors.
+        // Phone was explicitly cleared → unfreeze villagers
+        if (populationManager == null)
+            populationManager = FindObjectOfType<PopulationManager>();
+
+        if (populationManager != null)
+        {
+            populationManager.OnPhoneCleared();
+        }
     }
 }

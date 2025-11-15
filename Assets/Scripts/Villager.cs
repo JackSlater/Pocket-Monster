@@ -12,13 +12,14 @@ public class Villager : MonoBehaviour
     [Tooltip("How much individual move speed can vary (+/-).")]
     public float moveSpeedVariation = 0.75f;
 
-    [Tooltip("Distance at which we consider the villager to be 'at' the building.")]
+    [Tooltip("Distance at which we consider the villager to be 'at' a target (building/phone).")]
     public float closeEnoughDistance = 0.15f;
 
     [Header("Construction Contribution")]
     [Tooltip("How much construction effort this villager contributes per second when working.")]
     public float workEffortPerSecond = 10f;
 
+    [Header("Work Position Offsets")]
     [Tooltip("Horizontal offset from the center of the building when working.")]
     public float workOffsetDistance = 0.4f;
 
@@ -28,6 +29,13 @@ public class Villager : MonoBehaviour
     [Header("Visual Variety")]
     [Tooltip("How much villager height can vary (+/- as a fraction).")]
     public float heightVariation = 0.2f;
+
+    [Header("Ground")]
+    [Tooltip("If true, villager will always stay on this Y position (walks along the ground).")]
+    public bool lockToGround = true;
+
+    [Tooltip("Y position of the ground line.")]
+    public float groundY = -0.5f;
 
     [Header("References")]
     public Animator animator;              // optional
@@ -39,6 +47,11 @@ public class Villager : MonoBehaviour
     private float actualMoveSpeed;
     private Building currentTargetBuilding;
     private Vector3 currentWorkOffset;
+
+    // Phone-related
+    private bool frozenByPhone = false;    // true: stop moving/working while a phone event is active
+    private bool isPhoneChaser = false;    // true: this villager is the one going for the phone
+    private Phone targetPhone = null;
 
     private void Reset()
     {
@@ -56,6 +69,13 @@ public class Villager : MonoBehaviour
         if (productivityManager == null)
             productivityManager = FindObjectOfType<ProductivityManager>();
 
+        // If we lock to ground and no explicit groundY set, use our starting Y
+        if (lockToGround)
+        {
+            // You can comment this out if you ALWAYS want -0.5
+            // groundY = transform.position.y;
+        }
+
         // Randomize movement speed per villager
         float randomized = baseMoveSpeed + Random.Range(-moveSpeedVariation, moveSpeedVariation);
         actualMoveSpeed = Mathf.Max(0.1f, randomized);  // avoid zero/negative
@@ -66,6 +86,14 @@ public class Villager : MonoBehaviour
         scale.y *= Mathf.Max(0.1f, heightFactor);
         transform.localScale = scale;
 
+        // Snap to ground at start if needed
+        if (lockToGround)
+        {
+            Vector3 pos = transform.position;
+            pos.y = groundY;
+            transform.position = pos;
+        }
+
         UpdateVisuals();
     }
 
@@ -74,7 +102,99 @@ public class Villager : MonoBehaviour
         float dt = Time.deltaTime;
         if (dt <= 0f) return;
 
-        HandleWorkLogic(dt);
+        if (currentState == PersonState.Destructive)
+            return;
+
+        if (currentState == PersonState.PhoneAddiction)
+            return;
+
+        // Phone chaser logic first
+        if (isPhoneChaser && targetPhone != null && targetPhone.isActive)
+        {
+            HandlePhoneChase(dt);
+        }
+        else if (frozenByPhone)
+        {
+            SetState(PersonState.ShiftingAttention);
+        }
+        else
+        {
+            HandleWorkLogic(dt);
+        }
+
+        // Final safety: keep them on the ground after any movement
+        if (lockToGround)
+        {
+            Vector3 pos = transform.position;
+            pos.y = groundY;
+            transform.position = pos;
+        }
+    }
+
+    // ----------------- PHONE LOGIC -----------------
+
+    private void HandlePhoneChase(float dt)
+    {
+        if (targetPhone == null || !targetPhone.isActive)
+        {
+            isPhoneChaser = false;
+            return;
+        }
+
+        Vector3 targetPos = targetPhone.transform.position;
+
+        // Force phone target to be on ground line for movement
+        if (lockToGround)
+        {
+            targetPos.y = groundY;
+        }
+
+        Vector3 delta = targetPos - transform.position;
+        float dist = delta.magnitude;
+
+        if (dist > closeEnoughDistance)
+        {
+            Vector3 dir = delta.normalized;
+            Vector3 newPos = transform.position + dir * actualMoveSpeed * dt;
+
+            if (lockToGround)
+                newPos.y = groundY;
+
+            transform.position = newPos;
+            SetState(PersonState.ShiftingAttention);
+        }
+        else
+        {
+            // Reached the phone: pick it up and become addicted
+            targetPhone.DisablePhone();
+
+            PopulationManager pop = FindObjectOfType<PopulationManager>();
+            if (pop != null)
+            {
+                pop.OnVillagerPickedUpPhone(this, targetPhone);
+            }
+
+            isPhoneChaser = false;
+            targetPhone = null;
+        }
+    }
+
+    public void BecomePhoneChaser(Phone phone)
+    {
+        targetPhone = phone;
+        isPhoneChaser = true;
+        frozenByPhone = false;  // chaser is allowed to move
+    }
+
+    public void SetFrozenByPhone(bool frozen)
+    {
+        frozenByPhone = frozen;
+    }
+
+    public void SetPhoneAddicted()
+    {
+        currentState = PersonState.PhoneAddiction;
+        UpdateVisuals();
     }
 
     // ----------------- WORK & MOVEMENT LOGIC -----------------
@@ -92,25 +212,34 @@ public class Villager : MonoBehaviour
 
         if (currentTargetBuilding == null)
         {
-            // Nothing to build right now
             SetState(PersonState.Idle);
             return;
         }
 
-        // Move toward the target building + our personal offset
         Vector3 targetPos = currentTargetBuilding.transform.position + currentWorkOffset;
+
+        // Keep target on ground line
+        if (lockToGround)
+        {
+            targetPos.y = groundY;
+        }
+
         Vector3 delta = targetPos - transform.position;
         float dist = delta.magnitude;
 
         if (dist > closeEnoughDistance)
         {
             Vector3 dir = delta.normalized;
-            transform.position += dir * actualMoveSpeed * dt;
-            SetState(PersonState.ShiftingAttention);   // walking to work
+            Vector3 newPos = transform.position + dir * actualMoveSpeed * dt;
+
+            if (lockToGround)
+                newPos.y = groundY;
+
+            transform.position = newPos;
+            SetState(PersonState.ShiftingAttention);
         }
         else
         {
-            // At the building: contribute construction effort
             float effort = workEffortPerSecond * dt;
 
             ProductivityBand band = ProductivityBand.Thriving;
@@ -119,24 +248,15 @@ public class Villager : MonoBehaviour
                 band = productivityManager.GetBand();
             }
 
-            // Optionally scale villager output by productivity band
             float bandMultiplier = 1f;
             switch (band)
             {
-                case ProductivityBand.Thriving:
-                    bandMultiplier = 1f;
-                    break;
-                case ProductivityBand.Declining:
-                    bandMultiplier = 0.5f;
-                    break;
-                case ProductivityBand.Collapse:
-                    bandMultiplier = 0.2f;
-                    break;
+                case ProductivityBand.Thriving: bandMultiplier = 1f; break;
+                case ProductivityBand.Declining: bandMultiplier = 0.5f; break;
+                case ProductivityBand.Collapse: bandMultiplier = 0.2f; break;
             }
 
             effort *= bandMultiplier;
-
-            // Directly tick the building with this villager's effort
             currentTargetBuilding.Tick(effort, 0f, dt, band);
 
             SetState(PersonState.Working);
@@ -167,10 +287,6 @@ public class Villager : MonoBehaviour
         return best;
     }
 
-    /// <summary>
-    /// Pick a side & slight vertical jitter for where THIS villager stands relative to its current target.
-    /// This makes them appear on both sides of the building instead of stacking perfectly.
-    /// </summary>
     private void AssignWorkOffsetForCurrentBuilding()
     {
         if (currentTargetBuilding == null)
@@ -179,7 +295,7 @@ public class Villager : MonoBehaviour
             return;
         }
 
-        float side = Random.value < 0.5f ? -1f : 1f; // left or right
+        float side = Random.value < 0.5f ? -1f : 1f;
         float xOffset = side * workOffsetDistance;
         float yOffset = Random.Range(-workOffsetVerticalJitter, workOffsetVerticalJitter);
 
@@ -195,10 +311,8 @@ public class Villager : MonoBehaviour
         UpdateVisuals();
     }
 
-    // Called by PopulationManager to react to overall productivity.
     public void UpdateStateFromProductivity(ProductivityBand band, float currentProductivity)
     {
-        // Don't override strong states
         if (currentState == PersonState.PhoneAddiction || currentState == PersonState.Destructive)
             return;
 
@@ -221,25 +335,23 @@ public class Villager : MonoBehaviour
 
     private void UpdateVisuals()
     {
-        // Animator (if you have one)
         if (animator != null)
         {
             animator.SetInteger("State", (int)currentState);
         }
 
-        // Color feedback
         if (spriteRenderer == null) return;
 
         switch (currentState)
         {
             case PersonState.Working:
-                spriteRenderer.color = Color.red;   // working = red, as you asked earlier
+                spriteRenderer.color = Color.red;
                 break;
             case PersonState.ShiftingAttention:
                 spriteRenderer.color = Color.yellow;
                 break;
             case PersonState.PhoneAddiction:
-                spriteRenderer.color = new Color(1f, 0.5f, 0f); // orange
+                spriteRenderer.color = new Color(1f, 0.5f, 0f);
                 break;
             case PersonState.Idle:
                 spriteRenderer.color = Color.gray;
