@@ -118,39 +118,21 @@ public class PopulationManager : MonoBehaviour
     {
         if (phone == null || villagers.Count == 0) return;
 
-        // 1) Build a list of "available" villagers (not working, not addicted, not destructive)
-        List<Villager> candidates = new List<Villager>();
+        // Pick ONE villager (nearest) who is still "healthy"
+        Villager chaser = null;
+        float bestDistSq = float.MaxValue;
+
         foreach (var v in villagers)
         {
             if (v == null) continue;
 
-            if (v.currentState == PersonState.Working)
-            {
-                // This one is actively building → keep them going, no freeze
-                v.SetFrozenByPhone(false);
-                continue;
-            }
-
+            // Ignore villagers already lost or destroying stuff
             if (v.currentState == PersonState.PhoneAddiction ||
                 v.currentState == PersonState.Destructive)
             {
-                // Already lost / out of commission
                 continue;
             }
 
-            candidates.Add(v);
-        }
-
-        // If nobody is available to be distracted, we ignore this phone
-        if (candidates.Count == 0) return;
-
-        // 2) Choose the nearest candidate to the phone as the chaser
-        Villager chaser = null;
-        float bestDistSq = float.MaxValue;
-
-        foreach (var v in candidates)
-        {
-            if (v == null) continue;
             float dSq = (v.transform.position - phone.transform.position).sqrMagnitude;
             if (dSq < bestDistSq)
             {
@@ -161,25 +143,17 @@ public class PopulationManager : MonoBehaviour
 
         if (chaser == null) return;
 
-        // 3) Make the chosen villager chase the phone, freeze all other candidates
+        // Make sure nobody else is frozen because of previous phones
         foreach (var v in villagers)
         {
             if (v == null) continue;
-
-            if (v == chaser)
-            {
-                v.BecomePhoneChaser(phone);
-            }
-            else
-            {
-                // Only freeze non-working, non-addicted, non-destructive villagers
-                if (candidates.Contains(v))
-                {
-                    v.SetFrozenByPhone(true);
-                }
-            }
+            v.SetFrozenByPhone(false);
         }
+
+        // This one villager will chase the phone and become addicted
+        chaser.BecomePhoneChaser(phone);
     }
+
 
     /// <summary>
     /// Called by a villager when they actually reach and pick up the phone.
@@ -220,4 +194,33 @@ public class PopulationManager : MonoBehaviour
             v.SetFrozenByPhone(false);
         }
     }
+
+    // ----------------- STATS HELPERS FOR UI -----------------
+
+    public int GetTotalVillagerCount()
+    {
+        int count = 0;
+        foreach (var v in villagers)
+        {
+            if (v != null)
+            {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    public int GetPhoneAddictedCount()
+    {
+        int count = 0;
+        foreach (var v in villagers)
+        {
+            if (v != null && v.currentState == PersonState.PhoneAddiction)
+            {
+                count++;
+            }
+        }
+        return count;
+    }
+    
 }

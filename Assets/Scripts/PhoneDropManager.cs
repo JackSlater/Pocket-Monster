@@ -163,8 +163,8 @@ public class PhoneDropManager : MonoBehaviour
 
     /// <summary>
     /// Handles how villagers react when a phone has landed:
-    /// - Pick ONE villager to chase the phone
-    /// - Freeze all other villagers (they stop building / moving)
+    /// - Pick ONE villager (nearest to the phone) to chase it
+    /// - Everyone else keeps moving / working as normal
     /// </summary>
     private void StartPhoneEffectForVillagers(Phone phone)
     {
@@ -173,26 +173,42 @@ public class PhoneDropManager : MonoBehaviour
         if (villagers == null || villagers.Length == 0 || phone == null)
             return;
 
-        // Choose one random villager to be the chaser
-        int chaserIndex = Random.Range(0, villagers.Length);
-
-        for (int i = 0; i < villagers.Length; i++)
+        // 1) Clear any leftover frozen flags from a previous phone
+        foreach (var v in villagers)
         {
-            Villager v = villagers[i];
+            if (v != null)
+            {
+                v.SetFrozenByPhone(false);
+            }
+        }
+
+        // 2) Pick ONE villager to be the chaser (nearest non-addicted, non-destructive)
+        Villager chaser = null;
+        float bestDistSq = float.MaxValue;
+
+        foreach (var v in villagers)
+        {
             if (v == null) continue;
 
-            bool isChaser = (i == chaserIndex);
+            // Don’t pick villagers that are already gone to the dark side
+            if (v.currentState == PersonState.PhoneAddiction ||
+                v.currentState == PersonState.Destructive)
+            {
+                continue;
+            }
 
-            if (isChaser)
+            float dSq = (v.transform.position - phone.transform.position).sqrMagnitude;
+            if (dSq < bestDistSq)
             {
-                // This villager goes after the phone
-                v.BecomePhoneChaser(phone);
+                bestDistSq = dSq;
+                chaser = v;
             }
-            else
-            {
-                // These villagers freeze in place and stop working
-                v.SetFrozenByPhone(true);
-            }
+        }
+
+        // 3) Send that one villager after the phone
+        if (chaser != null)
+        {
+            chaser.BecomePhoneChaser(phone);
         }
     }
 }
