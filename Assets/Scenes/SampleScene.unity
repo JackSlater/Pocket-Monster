@@ -1263,7 +1263,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: Status:Running
+  m_text: 
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
@@ -1837,11 +1837,11 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PhoneDropManager
   productivityManager: {fileID: 2051202937}
-  populationManager: {fileID: 0}
   phonePrefab: {fileID: 7567680274285270222, guid: 1d86ea5dc0272304d8bad2d9f9bae4a8, type: 3}
   mainCamera: {fileID: 330585545}
   spawnHeight: 5
   phoneLifetime: 5
+  phoneCooldown: 3
 --- !u!114 &2051202935
 MonoBehaviour:
   m_ObjectHideFlags: 0
