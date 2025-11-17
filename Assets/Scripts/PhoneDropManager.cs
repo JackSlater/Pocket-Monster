@@ -1,27 +1,28 @@
 using UnityEngine;
 using UnityEngine.EventSystems;
+using System.Collections;
 
 public class PhoneDropManager : MonoBehaviour
 {
     [Header("References")]
     public ProductivityManager productivityManager;
-    public PopulationManager populationManager;
     public GameObject phonePrefab;          // assign the Phone prefab in Inspector
     public Camera mainCamera;               // optional; will use Camera.main if null
 
     [Header("Drop Settings")]
     public float spawnHeight = 5f;          // how high above the click the phone appears
     public float phoneLifetime = 5f;        // how long a phone can stay if not tapped
+    public float phoneCooldown = 3f;        // delay before another phone can be dropped
 
-    private Phone activePhone;              // track the current phone (optional)
+    private Phone activePhone;              // track the current phone (only one at a time)
+    private float cooldownTimer = 0f;
 
     private void Awake()
     {
         if (mainCamera == null)
+        {
             mainCamera = Camera.main;
-
-        if (populationManager == null)
-            populationManager = FindObjectOfType<PopulationManager>();
+        }
     }
 
     private void Update()
@@ -29,6 +30,12 @@ public class PhoneDropManager : MonoBehaviour
         // If game is over, don't spawn more phones
         if (GameManager.Instance != null && GameManager.Instance.isGameOver)
             return;
+
+        // Cooldown timer
+        if (cooldownTimer > 0f)
+        {
+            cooldownTimer -= Time.deltaTime;
+        }
 
         // Left mouse / primary click
         if (Input.GetMouseButtonDown(0))
@@ -47,11 +54,23 @@ public class PhoneDropManager : MonoBehaviour
     private void TrySpawnPhoneAtClick()
     {
         if (phonePrefab == null || mainCamera == null)
+        {
+            Debug.LogWarning("PhoneDropManager: Missing phonePrefab or mainCamera.");
             return;
+        }
 
-        // If we only want one active phone at a time, bail if one exists
+        // Block if a phone is already active or we're in cooldown
         if (activePhone != null && activePhone.isActive)
+        {
+            Debug.Log("PhoneDropManager: Phone already active, ignoring click.");
             return;
+        }
+
+        if (cooldownTimer > 0f)
+        {
+            Debug.Log("PhoneDropManager: Cooldown active, ignoring click.");
+            return;
+        }
 
         // Convert mouse position to world position
         Vector3 screenPos = Input.mousePosition;
@@ -67,39 +86,25 @@ public class PhoneDropManager : MonoBehaviour
         activePhone = phoneObj.GetComponent<Phone>();
         if (activePhone == null)
         {
-            Debug.LogWarning("PhoneDropManager: Spawned phonePrefab has no Phone component.");
+            activePhone = phoneObj.AddComponent<Phone>();
         }
 
-        // Make it fall if there is a Rigidbody2D
+        // Make sure the phone falls
         Rigidbody2D rb = phoneObj.GetComponent<Rigidbody2D>();
-        if (rb != null)
+        if (rb == null)
         {
-            rb.gravityScale = 1f;
+            rb = phoneObj.AddComponent<Rigidbody2D>();
         }
+        rb.gravityScale = 1f;
 
-        // Apply game-logic effect when phone drops
-        if (productivityManager != null)
-        {
-            productivityManager.ApplyPhoneDrop();
-        }
-
-        // Tell the population that a phone has dropped
-        if (populationManager == null)
-            populationManager = FindObjectOfType<PopulationManager>();
-
-        if (populationManager != null && activePhone != null)
-        {
-            populationManager.OnPhoneDropped(activePhone);
-        }
-
-        // Start a lifetime timer
-        if (phoneLifetime > 0f && activePhone != null)
+        // Auto-despawn after lifetime if not tapped
+        if (phoneLifetime > 0f)
         {
             StartCoroutine(PhoneLifetimeRoutine(activePhone, phoneLifetime));
         }
     }
 
-    private System.Collections.IEnumerator PhoneLifetimeRoutine(Phone phone, float lifetime)
+    private IEnumerator PhoneLifetimeRoutine(Phone phone, float lifetime)
     {
         float t = 0f;
         while (t < lifetime && phone != null && phone.isActive)
@@ -113,40 +118,81 @@ public class PhoneDropManager : MonoBehaviour
         {
             phone.DisablePhone();
         }
-
-        if (phone == activePhone)
-        {
-            activePhone = null;
-        }
-
-        // Phone disappeared without being picked up → unfreeze villagers
-        if (populationManager == null)
-            populationManager = FindObjectOfType<PopulationManager>();
-
-        if (populationManager != null)
-        {
-            populationManager.OnPhoneCleared();
-        }
     }
 
-    // Called by Phone.cs when the player taps the phone
+    /// <summary>
+    /// Called by Phone when it hits the ground.
+    /// This is where we apply the productivity hit AND make villagers react.
+    /// </summary>
+    public void OnPhoneLanded(Phone phone)
+    {
+        // 1) Productivity impact (numbers going down, band changing, etc.)
+        if (productivityManager != null)
+        {
+            productivityManager.ApplyPhoneDrop();
+        }
+
+        // 2) Villager behavior: everyone freezes, one villager goes to the phone
+        StartPhoneEffectForVillagers(phone);
+    }
+
+    /// <summary>
+    /// Called by Phone when the player taps it.
+    /// We don't apply productivity here – that already happened on landing –
+    /// but we do start cooldown once the phone is removed.
+    /// </summary>
     public void OnPhoneTapped(Phone phone)
     {
         Debug.Log("PhoneDropManager: Phone tapped!");
+        // Phone will call DisablePhone(), which triggers OnPhoneDisabled.
+    }
 
-        // If we only track one active phone, clear it here
+    /// <summary>
+    /// Called by Phone.DisablePhone when the phone object is being removed.
+    /// Clears the active phone reference and starts the cooldown.
+    /// </summary>
+    public void OnPhoneDisabled(Phone phone)
+    {
         if (phone == activePhone)
         {
             activePhone = null;
         }
 
-        // Phone was explicitly cleared → unfreeze villagers
-        if (populationManager == null)
-            populationManager = FindObjectOfType<PopulationManager>();
+        cooldownTimer = phoneCooldown;
+    }
 
-        if (populationManager != null)
+    /// <summary>
+    /// Handles how villagers react when a phone has landed:
+    /// - Pick ONE villager to chase the phone
+    /// - Freeze all other villagers (they stop building / moving)
+    /// </summary>
+    private void StartPhoneEffectForVillagers(Phone phone)
+    {
+        // Get all villagers currently in the scene
+        Villager[] villagers = FindObjectsOfType<Villager>();
+        if (villagers == null || villagers.Length == 0 || phone == null)
+            return;
+
+        // Choose one random villager to be the chaser
+        int chaserIndex = Random.Range(0, villagers.Length);
+
+        for (int i = 0; i < villagers.Length; i++)
         {
-            populationManager.OnPhoneCleared();
+            Villager v = villagers[i];
+            if (v == null) continue;
+
+            bool isChaser = (i == chaserIndex);
+
+            if (isChaser)
+            {
+                // This villager goes after the phone
+                v.BecomePhoneChaser(phone);
+            }
+            else
+            {
+                // These villagers freeze in place and stop working
+                v.SetFrozenByPhone(true);
+            }
         }
     }
 }

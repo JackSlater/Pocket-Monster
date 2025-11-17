@@ -7,19 +7,12 @@ public class Phone : MonoBehaviour
     public bool isActive = true;
 
     private PhoneDropManager manager;
-    private bool hasLanded = false;
-    public bool HasLanded => hasLanded;
+    private Rigidbody2D rb;
 
     private void Awake()
     {
         manager = FindObjectOfType<PhoneDropManager>();
-
-        // Make sure collider is NOT a trigger so physics will stop on ground
-        BoxCollider2D col = GetComponent<BoxCollider2D>();
-        if (col != null)
-        {
-            col.isTrigger = false;
-        }
+        rb = GetComponent<Rigidbody2D>();
     }
 
     private void OnMouseDown()
@@ -34,23 +27,25 @@ public class Phone : MonoBehaviour
         DisablePhone();
     }
 
-    // Called when the phone hits something solid (e.g. Ground)
     private void OnCollisionEnter2D(Collision2D collision)
     {
-        if (hasLanded) return;
+        if (!isActive) return;
 
-        // Only care about the ground
-        if (!collision.collider.CompareTag("Ground"))
-            return;
-
-        hasLanded = true;
-
-        // Stop falling / bouncing
-        Rigidbody2D rb = GetComponent<Rigidbody2D>();
-        if (rb != null)
+        // We only care about hitting the ground, which should be tagged "Ground"
+        if (collision.collider.CompareTag("Ground"))
         {
-            rb.velocity = Vector2.zero;
-            rb.gravityScale = 0f;
+            if (manager != null)
+            {
+                manager.OnPhoneLanded(this);
+            }
+
+            // Stop moving so it sits on the ground
+            if (rb != null)
+            {
+                rb.velocity = Vector2.zero;
+                rb.angularVelocity = 0f;
+                rb.bodyType = RigidbodyType2D.Static;
+            }
         }
     }
 
@@ -59,6 +54,12 @@ public class Phone : MonoBehaviour
         if (!isActive) return;
 
         isActive = false;
+
+        if (manager != null)
+        {
+            manager.OnPhoneDisabled(this);
+        }
+
         Destroy(gameObject);
     }
 }

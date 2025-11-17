@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 
 public class BuildingManager : MonoBehaviour
@@ -7,39 +8,40 @@ public class BuildingManager : MonoBehaviour
     public List<Building> buildings = new List<Building>();
 
     [Header("Spawning")]
-    [Tooltip("Prefab to spawn when a new building starts construction.")]
     public Building buildingPrefab;
-
-    [Tooltip("Positions where new buildings can appear. Will cycle through this list.")]
     public List<Transform> spawnPoints = new List<Transform>();
-
-    [Tooltip("How many buildings should be under construction at once.")]
     public int targetUnderConstructionCount = 1;
 
     private int nextSpawnIndex = 0;
 
     private void Start()
     {
-        // Auto-collect any buildings already in the scene
-        if (buildings.Count == 0)
-        {
-            buildings.AddRange(FindObjectsOfType<Building>());
-        }
+        // Collect any buildings already in the scene
+        var found = FindObjectsOfType<Building>().ToList();
+
+        // Merge with any that might have been added in Inspector (we'll de-dup)
+        buildings.AddRange(found);
+
+        // Remove nulls and duplicates
+        buildings = buildings
+            .Where(b => b != null)
+            .Distinct()
+            .ToList();
+
+        // Sort left-to-right so index order matches what you see on screen
+        SortBuildingsByPosition();
     }
 
     private void Update()
     {
-        // Optional: stop spawning when game is over.
         if (GameManager.Instance != null && GameManager.Instance.isGameOver)
             return;
 
-        // NO baseline progress here – buildings only advance when villagers tick them.
         EnsureActiveBuildings();
     }
 
     private void EnsureActiveBuildings()
     {
-        // Count how many are still being built
         int underConstructionCount = 0;
         foreach (var b in buildings)
         {
@@ -49,7 +51,6 @@ public class BuildingManager : MonoBehaviour
             }
         }
 
-        // While we have fewer than the target, spawn more
         while (underConstructionCount < targetUnderConstructionCount)
         {
             if (!CanSpawnNewBuilding())
@@ -74,30 +75,36 @@ public class BuildingManager : MonoBehaviour
 
         Building newBuilding = Instantiate(buildingPrefab, spawn.position, Quaternion.identity);
 
-        // Use the helper so state + visuals match
         newBuilding.InitializeAsNewConstruction();
-
         RegisterBuilding(newBuilding);
     }
-
-    // --- Public registration helpers ---
 
     public void RegisterBuilding(Building building)
     {
         if (building == null) return;
+
         if (!buildings.Contains(building))
         {
             buildings.Add(building);
+            SortBuildingsByPosition();
         }
     }
 
     public void UnregisterBuilding(Building building)
     {
         if (building == null) return;
+
         if (buildings.Contains(building))
         {
             buildings.Remove(building);
         }
     }
-    
+
+    private void SortBuildingsByPosition()
+    {
+        buildings = buildings
+            .Where(b => b != null)
+            .OrderBy(b => b.transform.position.x)   // left → right
+            .ToList();
+    }
 }

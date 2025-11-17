@@ -122,4 +122,9 @@ public class Building : MonoBehaviour
         constructionProgress = 0f;
         UpdateVisuals();
     }
+    private void OnDrawGizmos()
+    {
+        Gizmos.color = Color.magenta;
+        Gizmos.DrawSphere(transform.position, 0.1f);
+    }
 }
