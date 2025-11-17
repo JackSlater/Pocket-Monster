@@ -13,7 +13,7 @@ public class Villager : MonoBehaviour
     public float moveSpeedVariation = 0.75f;
 
     [Tooltip("Distance at which we consider the villager to be 'at' a target (building/phone).")]
-    public float closeEnoughDistance = 0.15f;
+    public float closeEnoughDistance = 0.05f;
 
     [Header("Construction Contribution")]
     [Tooltip("How much construction effort this villager contributes per second when working.")]
@@ -21,10 +21,10 @@ public class Villager : MonoBehaviour
 
     [Header("Work Position Offsets")]
     [Tooltip("Horizontal offset from the center of the building when working.")]
-    public float workOffsetDistance = 0.4f;
+    public float workOffsetDistance = 0.0f;
 
     [Tooltip("Vertical jitter when choosing a work offset.")]
-    public float workOffsetVerticalJitter = 0.1f;
+    public float workOffsetVerticalJitter = 0.0f;
 
     [Header("Visual Variety")]
     [Tooltip("How much villager height can vary (+/- as a fraction).")]
@@ -34,8 +34,8 @@ public class Villager : MonoBehaviour
     [Tooltip("If true, villager will always stay on this Y position (walks along the ground).")]
     public bool lockToGround = true;
 
-    [Tooltip("Y position of the ground line.")]
-    public float groundY = -0.5f;
+    [Tooltip("Y position of the ground line (should match BuildingRoot Y, e.g. -1).")]
+    public float groundY = -1f;
 
     [Header("References")]
     public Animator animator;              // optional
@@ -69,11 +69,12 @@ public class Villager : MonoBehaviour
         if (productivityManager == null)
             productivityManager = FindObjectOfType<ProductivityManager>();
 
-        // If we lock to ground and no explicit groundY set, use our starting Y
+        // Snap to the configured ground line at start
         if (lockToGround)
         {
-            // You can comment this out if you ALWAYS want -0.5
-            // groundY = transform.position.y;
+            Vector3 pos = transform.position;
+            pos.y = groundY;
+            transform.position = pos;
         }
 
         // Randomize movement speed per villager
@@ -85,14 +86,6 @@ public class Villager : MonoBehaviour
         float heightFactor = 1f + Random.Range(-heightVariation, heightVariation);
         scale.y *= Mathf.Max(0.1f, heightFactor);
         transform.localScale = scale;
-
-        // Snap to ground at start if needed
-        if (lockToGround)
-        {
-            Vector3 pos = transform.position;
-            pos.y = groundY;
-            transform.position = pos;
-        }
 
         UpdateVisuals();
     }
@@ -165,7 +158,15 @@ public class Villager : MonoBehaviour
         }
         else
         {
-            // Reached the phone: pick it up and become addicted
+            // We've reached the phone's horizontal position,
+            // but only pick it up once it has actually landed on the ground.
+            if (!targetPhone.HasLanded)
+            {
+                // Stand at the landing spot and wait for the phone to land.
+                SetState(PersonState.ShiftingAttention);
+                return;
+            }
+
             targetPhone.DisablePhone();
 
             PopulationManager pop = FindObjectOfType<PopulationManager>();
@@ -240,6 +241,16 @@ public class Villager : MonoBehaviour
         }
         else
         {
+            // Snap exactly to the work position when close enough
+            if (lockToGround)
+            {
+                transform.position = new Vector3(targetPos.x, groundY, transform.position.z);
+            }
+            else
+            {
+                transform.position = targetPos;
+            }
+
             float effort = workEffortPerSecond * dt;
 
             ProductivityBand band = ProductivityBand.Thriving;
@@ -289,17 +300,8 @@ public class Villager : MonoBehaviour
 
     private void AssignWorkOffsetForCurrentBuilding()
     {
-        if (currentTargetBuilding == null)
-        {
-            currentWorkOffset = Vector3.zero;
-            return;
-        }
-
-        float side = Random.value < 0.5f ? -1f : 1f;
-        float xOffset = side * workOffsetDistance;
-        float yOffset = Random.Range(-workOffsetVerticalJitter, workOffsetVerticalJitter);
-
-        currentWorkOffset = new Vector3(xOffset, yOffset, 0f);
+        // Stand directly under the building – no offset.
+        currentWorkOffset = Vector3.zero;
     }
 
     // ----------------- STATE / VISUALS -----------------

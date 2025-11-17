@@ -8,6 +8,7 @@ public class Phone : MonoBehaviour
 
     private PhoneDropManager manager;
     private bool hasLanded = false;
+    public bool HasLanded => hasLanded;
 
     private void Awake()
     {
