@@ -24,6 +24,24 @@ public class UIManager : MonoBehaviour
     [Header("Phone HUD (optional)")]
     public TextMeshProUGUI currentPhoneTypeText;
 
+    [Header("Phone Selection UI")]
+    public PhoneDropManager phoneDropManager;
+    public Image socialMediaPhoneBox;   // red phone icon box
+    public Image streamingPhoneBox;     // yellow phone icon box
+    public Image mainstreamPhoneBox;    // blue phone icon box
+    public Image gamblingPhoneBox;      // green phone icon box
+
+    // These are no longer used to override color; we’ll keep them just so Unity
+    // doesn’t lose serialized data, but we’ll drive highlight from the base colors.
+    public Color selectedPhoneBoxColor   = Color.white;
+    public Color deselectedPhoneBoxColor = new Color(1f, 1f, 1f, 0.3f);
+
+    // Store each button's original color (the one you set in the Image)
+    private Color socialBaseColor;
+    private Color streamingBaseColor;
+    private Color mainstreamBaseColor;
+    private Color gamblingBaseColor;
+
     private float bestTime = 0f;
 
     private void Start()
@@ -47,6 +65,23 @@ public class UIManager : MonoBehaviour
             restartButton.onClick.RemoveAllListeners();
             restartButton.onClick.AddListener(OnResetButtonPressed);
         }
+
+        if (phoneDropManager == null)
+            phoneDropManager = FindObjectOfType<PhoneDropManager>();
+
+        // Cache the original button colors (red, yellow, blue, green)
+        if (socialMediaPhoneBox != null)
+            socialBaseColor = socialMediaPhoneBox.color;
+        if (streamingPhoneBox != null)
+            streamingBaseColor = streamingPhoneBox.color;
+        if (mainstreamPhoneBox != null)
+            mainstreamBaseColor = mainstreamPhoneBox.color;
+        if (gamblingPhoneBox != null)
+            gamblingBaseColor = gamblingPhoneBox.color;
+
+        // Initialize selection highlight once
+        if (phoneDropManager != null)
+            UpdatePhoneSelectionUI(phoneDropManager.currentPhoneType);
     }
 
     private void Update()
@@ -86,12 +121,16 @@ public class UIManager : MonoBehaviour
                 statusText.text = BuildStatusText(populationPercent);
         }
 
-        // --- Current phone type HUD (optional) ---
-        if (currentPhoneTypeText != null)
+        // --- Current phone type HUD + highlight ---
+        if (phoneDropManager == null)
+            phoneDropManager = FindObjectOfType<PhoneDropManager>();
+
+        if (phoneDropManager != null)
         {
-            var pdm = FindObjectOfType<PhoneDropManager>();
-            if (pdm != null)
-                currentPhoneTypeText.text = $"Current Phone: {pdm.currentPhoneType}";
+            if (currentPhoneTypeText != null)
+                currentPhoneTypeText.text = $"Current Phone: {phoneDropManager.currentPhoneType}";
+
+            UpdatePhoneSelectionUI(phoneDropManager.currentPhoneType);
         }
 
         // --- Game over UI ---
@@ -138,5 +177,72 @@ public class UIManager : MonoBehaviour
             return "Status: Crisis – majority are addicted";
 
         return "Status: Collapse – society is falling apart";
+    }
+
+    // -------------------------------------------------
+    // PHONE SELECTION UI – highlight using alpha only
+    // -------------------------------------------------
+
+    private void UpdatePhoneSelectionUI(PhoneType selectedType)
+    {
+        float selectedAlpha = 1f;
+        float deselectedAlpha = 0.4f;
+
+        if (socialMediaPhoneBox != null)
+        {
+            Color c = socialBaseColor;
+            c.a = (selectedType == PhoneType.SocialMediaRed) ? selectedAlpha : deselectedAlpha;
+            socialMediaPhoneBox.color = c;
+        }
+
+        if (streamingPhoneBox != null)
+        {
+            Color c = streamingBaseColor;
+            c.a = (selectedType == PhoneType.StreamingYellow) ? selectedAlpha : deselectedAlpha;
+            streamingPhoneBox.color = c;
+        }
+
+        if (mainstreamPhoneBox != null)
+        {
+            Color c = mainstreamBaseColor;
+            c.a = (selectedType == PhoneType.MainstreamBlue) ? selectedAlpha : deselectedAlpha;
+            mainstreamPhoneBox.color = c;
+        }
+
+        if (gamblingPhoneBox != null)
+        {
+            Color c = gamblingBaseColor;
+            c.a = (selectedType == PhoneType.GamblingGreen) ? selectedAlpha : deselectedAlpha;
+            gamblingPhoneBox.color = c;
+        }
+    }
+
+    private void SetSelectedPhoneType(PhoneType type)
+    {
+        if (phoneDropManager != null)
+            phoneDropManager.SetCurrentPhoneType(type);
+
+        UpdatePhoneSelectionUI(type);
+    }
+
+    // Hook these up to the 4 UI buttons in the Inspector
+    public void OnSelectSocialMediaPhone()
+    {
+        SetSelectedPhoneType(PhoneType.SocialMediaRed);
+    }
+
+    public void OnSelectStreamingPhone()
+    {
+        SetSelectedPhoneType(PhoneType.StreamingYellow);
+    }
+
+    public void OnSelectMainstreamPhone()
+    {
+        SetSelectedPhoneType(PhoneType.MainstreamBlue);
+    }
+
+    public void OnSelectGamblingPhone()
+    {
+        SetSelectedPhoneType(PhoneType.GamblingGreen);
     }
 }

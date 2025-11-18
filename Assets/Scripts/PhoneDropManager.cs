@@ -54,16 +54,22 @@ public class PhoneDropManager : MonoBehaviour
         }
     }
 
+    // Called from keyboard (1–4) AND from UI buttons
+    public void SetCurrentPhoneType(PhoneType newType)
+    {
+        currentPhoneType = newType;
+    }
+
     private void HandlePhoneTypeSelection()
     {
         if (Input.GetKeyDown(KeyCode.Alpha1))
-            currentPhoneType = PhoneType.SocialMediaRed;
+            SetCurrentPhoneType(PhoneType.SocialMediaRed);
         else if (Input.GetKeyDown(KeyCode.Alpha2))
-            currentPhoneType = PhoneType.StreamingYellow;
+            SetCurrentPhoneType(PhoneType.StreamingYellow);
         else if (Input.GetKeyDown(KeyCode.Alpha3))
-            currentPhoneType = PhoneType.MainstreamBlue;
+            SetCurrentPhoneType(PhoneType.MainstreamBlue);
         else if (Input.GetKeyDown(KeyCode.Alpha4))
-            currentPhoneType = PhoneType.GamblingGreen;
+            SetCurrentPhoneType(PhoneType.GamblingGreen);
     }
 
     private void TrySpawnPhoneAtClick()
@@ -91,7 +97,32 @@ public class PhoneDropManager : MonoBehaviour
         if (activePhone == null)
             activePhone = phoneObj.AddComponent<Phone>();
 
+        // Set the gameplay type
         activePhone.phoneType = currentPhoneType;
+
+        // Color the phone based on its type
+        SpriteRenderer sr = phoneObj.GetComponent<SpriteRenderer>();
+        if (sr != null)
+        {
+            switch (currentPhoneType)
+            {
+                case PhoneType.SocialMediaRed:
+                    sr.color = Color.red;
+                    break;
+                case PhoneType.StreamingYellow:
+                    sr.color = Color.yellow;
+                    break;
+                case PhoneType.MainstreamBlue:
+                    sr.color = Color.blue;
+                    break;
+                case PhoneType.GamblingGreen:
+                    sr.color = Color.green;
+                    break;
+                default:
+                    sr.color = Color.white;
+                    break;
+            }
+        }
 
         Rigidbody2D rb = phoneObj.GetComponent<Rigidbody2D>();
         if (rb == null) rb = phoneObj.AddComponent<Rigidbody2D>();

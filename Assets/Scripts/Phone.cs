@@ -2,25 +2,63 @@ using UnityEngine;
 
 [RequireComponent(typeof(BoxCollider2D))]
 [RequireComponent(typeof(Rigidbody2D))]
+[RequireComponent(typeof(SpriteRenderer))]
 public class Phone : MonoBehaviour
 {
     public bool isActive = true;
 
-    // NEW: true once we hit the ground
+    // True once phone hits ground
     public bool hasLanded = false;
 
-    // Which phone this instance is (red/yellow/blue/green)
+    // Phone category (color-coded)
     public PhoneType phoneType = PhoneType.SocialMediaRed;
 
     private PhoneDropManager manager;
     private Rigidbody2D rb;
+    private SpriteRenderer sr;
 
     private void Awake()
     {
         manager = FindObjectOfType<PhoneDropManager>();
         rb = GetComponent<Rigidbody2D>();
+        sr = GetComponent<SpriteRenderer>();
+
+        ApplyColor();
     }
 
+    // -------------------------------
+    // COLOR LOGIC
+    // -------------------------------
+    private void ApplyColor()
+    {
+        if (sr == null) return;
+
+        sr.color = GetColorForType(phoneType);
+    }
+
+    private Color GetColorForType(PhoneType type)
+    {
+        switch (type)
+        {
+            case PhoneType.SocialMediaRed:
+                return Color.red;
+
+            case PhoneType.StreamingYellow:
+                return Color.yellow;
+
+            case PhoneType.MainstreamBlue:
+                return Color.blue; // or Color.cyan if preferred
+
+            case PhoneType.GamblingGreen:
+                return Color.green;
+        }
+
+        return Color.white;
+    }
+
+    // -------------------------------
+    // INPUT (tap to delete)
+    // -------------------------------
     private void OnMouseDown()
     {
         if (!isActive) return;
@@ -33,20 +71,22 @@ public class Phone : MonoBehaviour
         DisablePhone();
     }
 
+    // -------------------------------
+    // COLLISION (hit ground)
+    // -------------------------------
     private void OnCollisionEnter2D(Collision2D collision)
     {
         if (!isActive) return;
 
         if (collision.collider.CompareTag("Ground"))
         {
-            hasLanded = true; // <- now villagers are allowed to interact
+            hasLanded = true;
 
             if (manager != null)
             {
                 manager.OnPhoneLanded(this);
             }
 
-            // Sit on the ground
             if (rb != null)
             {
                 rb.velocity = Vector2.zero;
@@ -56,6 +96,9 @@ public class Phone : MonoBehaviour
         }
     }
 
+    // -------------------------------
+    // REMOVAL
+    // -------------------------------
     public void DisablePhone()
     {
         if (!isActive) return;
