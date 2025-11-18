@@ -26,7 +26,9 @@ public class Villager : MonoBehaviour
     public SpriteRenderer spriteRenderer;
     public BuildingManager buildingManager;
     public ProductivityManager productivityManager;
+    public PopulationManager populationManager;
 
+    // Internal movement
     private float actualMoveSpeed;
     private Building currentTargetBuilding;
     private Vector3 currentWorkOffset;
@@ -35,6 +37,13 @@ public class Villager : MonoBehaviour
     private bool frozenByPhone = false;
     private bool isPhoneChaser = false;
     private Phone targetPhone = null;
+
+    // Gambling-phone: this villager is a building destroyer
+    private bool isBuildingDestroyer = false;
+    private float destructionTimer = 0f;   // time spent destroying current building
+
+    // Red-phone violence: each violent villager may kill only once
+    private bool hasKilledSomeone = false;
 
     private void Reset()
     {
@@ -51,6 +60,9 @@ public class Villager : MonoBehaviour
 
         if (productivityManager == null)
             productivityManager = FindObjectOfType<ProductivityManager>();
+
+        if (populationManager == null)
+            populationManager = FindObjectOfType<PopulationManager>();
 
         float randomized = baseMoveSpeed + Random.Range(-moveSpeedVariation, moveSpeedVariation);
         actualMoveSpeed = Mathf.Max(0.1f, randomized);
@@ -71,12 +83,17 @@ public class Villager : MonoBehaviour
         if (dt <= 0f) return;
 
         if (currentState == PersonState.Destructive)
-            return;
-
-        if (currentState == PersonState.PhoneAddiction)
-            return;
-
-        if (isPhoneChaser && targetPhone != null && targetPhone.isActive)
+        {
+            if (isBuildingDestroyer)
+                HandleBuildingDestruction(dt);
+            else
+                HandleViolentBehaviour(dt);
+        }
+        else if (currentState == PersonState.PhoneAddiction)
+        {
+            // Add idle animation later if you want, but no movement
+        }
+        else if (isPhoneChaser && targetPhone != null && targetPhone.isActive)
         {
             HandlePhoneChase(dt);
         }
@@ -97,7 +114,22 @@ public class Villager : MonoBehaviour
         }
     }
 
-    // ---------- PHONE LOGIC ----------
+    // -------------------------------------------------------------------------
+    // Helpers
+    // -------------------------------------------------------------------------
+
+    private float GetCurrentMoveSpeed()
+    {
+        float mult = 1f;
+        if (populationManager != null)
+            mult = populationManager.globalSpeedMultiplier; // blue phone slow-down
+
+        return actualMoveSpeed * mult;
+    }
+
+    // -------------------------------------------------------------------------
+    // PHONE LOGIC
+    // -------------------------------------------------------------------------
 
     private void HandlePhoneChase(float dt)
     {
@@ -107,17 +139,34 @@ public class Villager : MonoBehaviour
             return;
         }
 
+        float moveSpeed = GetCurrentMoveSpeed();
+
         Vector3 targetPos = targetPhone.transform.position;
-        if (lockToGround)
-            targetPos.y = groundY;
+        if (lockToGround) targetPos.y = groundY;
 
         Vector3 delta = targetPos - transform.position;
         float dist = delta.magnitude;
 
+        // While the phone is still falling, we ONLY move toward it, never pick it up
+        if (!targetPhone.hasLanded)
+        {
+            if (dist > closeEnoughDistance)
+            {
+                Vector3 dir = delta.normalized;
+                Vector3 newPos = transform.position + dir * moveSpeed * dt;
+                if (lockToGround) newPos.y = groundY;
+                transform.position = newPos;
+            }
+
+            SetState(PersonState.ShiftingAttention);
+            return;
+        }
+
+        // Phone has landed – now we can actually reach and pick it up
         if (dist > closeEnoughDistance)
         {
             Vector3 dir = delta.normalized;
-            Vector3 newPos = transform.position + dir * actualMoveSpeed * dt;
+            Vector3 newPos = transform.position + dir * moveSpeed * dt;
             if (lockToGround) newPos.y = groundY;
             transform.position = newPos;
 
@@ -125,14 +174,13 @@ public class Villager : MonoBehaviour
         }
         else
         {
-            targetPhone.DisablePhone();
-
-            PopulationManager pop = FindObjectOfType<PopulationManager>();
-            if (pop != null)
+            // We've reached the phone on the ground
+            if (populationManager != null)
             {
-                pop.OnVillagerPickedUpPhone(this, targetPhone);
+                populationManager.OnVillagerPickedUpPhone(this, targetPhone);
             }
 
+            targetPhone.DisablePhone();
             isPhoneChaser = false;
             targetPhone = null;
         }
@@ -156,13 +204,164 @@ public class Villager : MonoBehaviour
         UpdateVisuals();
     }
 
-    // ---------- BUILDING WORK LOGIC ----------
+    // -------------------------------------------------------------------------
+    // GAMBLING PHONE: BUILDING DESTRUCTION
+    // -------------------------------------------------------------------------
+
+    public void BecomeBuildingDestroyer()
+    {
+        isBuildingDestroyer = true;
+        destructionTimer = 0f;
+        currentTargetBuilding = null;
+        currentState = PersonState.Destructive;
+        UpdateVisuals();
+    }
+
+    private void HandleBuildingDestruction(float dt)
+    {
+        if (buildingManager == null || buildingManager.buildings == null || buildingManager.buildings.Count == 0)
+            return;
+
+        if (currentTargetBuilding == null || currentTargetBuilding.currentState == BuildingState.Destroyed)
+        {
+            currentTargetBuilding = FindNextAliveBuilding();
+            destructionTimer = 0f;
+        }
+
+        if (currentTargetBuilding == null)
+            return;
+
+        Vector3 targetPos = currentTargetBuilding.transform.position;
+        if (lockToGround) targetPos.y = groundY;
+
+        Vector3 delta = targetPos - transform.position;
+        float dist = delta.magnitude;
+        float moveSpeed = GetCurrentMoveSpeed();
+
+        if (dist > closeEnoughDistance)
+        {
+            Vector3 dir = delta.normalized;
+            Vector3 newPos = transform.position + dir * moveSpeed * dt;
+            if (lockToGround) newPos.y = groundY;
+            transform.position = newPos;
+        }
+        else
+        {
+            // We're at the building: chip away over time.
+            destructionTimer += dt;
+
+            // Time a single worker would need to fully build this building
+            float timeToDestroy = 1f;
+            if (currentTargetBuilding.constructionRequirement > 0f && workEffortPerSecond > 0f)
+            {
+                timeToDestroy = currentTargetBuilding.constructionRequirement / workEffortPerSecond;
+            }
+
+            if (destructionTimer >= timeToDestroy)
+            {
+                currentTargetBuilding.ForceCollapse();
+                currentTargetBuilding = null;
+                destructionTimer = 0f;
+            }
+        }
+    }
+
+    private Building FindNextAliveBuilding()
+    {
+        if (buildingManager == null || buildingManager.buildings == null)
+            return null;
+
+        foreach (var b in buildingManager.buildings)
+        {
+            if (b == null) continue;
+            if (b.currentState != BuildingState.Destroyed)
+                return b;
+        }
+        return null;
+    }
+
+    // -------------------------------------------------------------------------
+    // RED PHONE: VIOLENT BEHAVIOUR
+    // -------------------------------------------------------------------------
+
+    private void HandleViolentBehaviour(float dt)
+    {
+        // Once they’ve killed one person, they calm down and become idle
+        if (hasKilledSomeone)
+        {
+            SetState(PersonState.Idle);
+            return;
+        }
+
+        if (populationManager == null || populationManager.villagers == null)
+            return;
+
+        Villager target = null;
+        float bestDistSq = float.MaxValue;
+
+        foreach (var v in populationManager.villagers)
+        {
+            if (v == null || v == this) continue;
+            if (v.currentState == PersonState.Destructive) continue; // ignore other violent ones
+
+            float dSq = (v.transform.position - transform.position).sqrMagnitude;
+            if (dSq < bestDistSq)
+            {
+                bestDistSq = dSq;
+                target = v;
+            }
+        }
+
+        float moveSpeed = GetCurrentMoveSpeed();
+        float attackRadius = 0.1f;
+
+        // Close enough to "hit"
+        if (target != null && bestDistSq < attackRadius * attackRadius)
+        {
+            if (populationManager.villagers.Contains(target))
+                populationManager.villagers.Remove(target);
+            Destroy(target.gameObject);
+
+            hasKilledSomeone = true;
+            SetState(PersonState.Idle);
+            return;
+        }
+
+        // Move toward target if we have one
+        if (target != null)
+        {
+            Vector3 targetPos = target.transform.position;
+            if (lockToGround) targetPos.y = groundY;
+
+            Vector3 delta = targetPos - transform.position;
+            float dist = delta.magnitude;
+
+            if (dist > closeEnoughDistance)
+            {
+                Vector3 dir = delta.normalized;
+                Vector3 newPos = transform.position + dir * moveSpeed * dt;
+                if (lockToGround) newPos.y = groundY;
+                transform.position = newPos;
+            }
+        }
+        else
+        {
+            // No target – small wander
+            Vector3 dir = new Vector3(Random.Range(-1f, 1f), 0f, 0f).normalized;
+            Vector3 newPos = transform.position + dir * moveSpeed * dt * 0.5f;
+            if (lockToGround) newPos.y = groundY;
+            transform.position = newPos;
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // WORK / BUILDING LOGIC
+    // -------------------------------------------------------------------------
 
     private void HandleWorkLogic(float dt)
     {
         if (buildingManager == null) return;
 
-        // Always pick the FIRST under-construction building in the list
         if (currentTargetBuilding == null ||
             currentTargetBuilding.currentState != BuildingState.UnderConstruction)
         {
@@ -177,16 +376,17 @@ public class Villager : MonoBehaviour
         }
 
         Vector3 targetPos = currentTargetBuilding.transform.position + currentWorkOffset;
-        if (lockToGround)
-            targetPos.y = groundY;
+        if (lockToGround) targetPos.y = groundY;
 
         Vector3 delta = targetPos - transform.position;
         float dist = delta.magnitude;
 
+        float moveSpeed = GetCurrentMoveSpeed();
+
         if (dist > closeEnoughDistance)
         {
             Vector3 dir = delta.normalized;
-            Vector3 newPos = transform.position + dir * actualMoveSpeed * dt;
+            Vector3 newPos = transform.position + dir * moveSpeed * dt;
             if (lockToGround) newPos.y = groundY;
             transform.position = newPos;
 
@@ -203,15 +403,13 @@ public class Villager : MonoBehaviour
             float bandMultiplier = 1f;
             switch (band)
             {
-                case ProductivityBand.Thriving: bandMultiplier = 1f; break;
+                case ProductivityBand.Thriving: bandMultiplier = 1f;   break;
                 case ProductivityBand.Declining: bandMultiplier = 0.5f; break;
                 case ProductivityBand.Collapse:  bandMultiplier = 0.2f; break;
             }
             effort *= bandMultiplier;
 
-            // Only this building is ticked
             currentTargetBuilding.Tick(effort, 0f, dt, band);
-
             SetState(PersonState.Working);
         }
     }
@@ -225,9 +423,8 @@ public class Villager : MonoBehaviour
         {
             if (b == null) continue;
             if (b.currentState == BuildingState.UnderConstruction)
-                return b;   // first under-construction in list
+                return b;
         }
-
         return null;
     }
 
@@ -246,7 +443,9 @@ public class Villager : MonoBehaviour
         currentWorkOffset = new Vector3(xOffset, yOffset, 0f);
     }
 
-    // ---------- STATE / VISUALS ----------
+    // -------------------------------------------------------------------------
+    // STATE / VISUALS
+    // -------------------------------------------------------------------------
 
     public void SetState(PersonState newState)
     {
@@ -302,7 +501,9 @@ public class Villager : MonoBehaviour
         }
     }
 
-    // ---------- DEBUG GIZMO ----------
+    // -------------------------------------------------------------------------
+    // DEBUG
+    // -------------------------------------------------------------------------
 
     private void OnDrawGizmosSelected()
     {

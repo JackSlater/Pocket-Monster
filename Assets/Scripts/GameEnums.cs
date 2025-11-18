@@ -24,3 +24,11 @@ public enum BuildingState
     Ruined            = 3,
     Destroyed         = 4
 }
+
+public enum PhoneType
+{
+    SocialMediaRed,     // violent villagers
+    StreamingYellow,    // villagers idle/binge
+    MainstreamBlue,     // everyone slows down
+    GamblingGreen       // building-destroyer villager
+}

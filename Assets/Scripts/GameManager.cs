@@ -1,7 +1,7 @@
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
-public class GameManager  : MonoBehaviour
+public class GameManager : MonoBehaviour
 {
     public static GameManager Instance { get; private set; }
 
@@ -10,20 +10,13 @@ public class GameManager  : MonoBehaviour
 
     private void Awake()
     {
-        if (Instance != null && Instance != this)
-        {
-            Destroy(gameObject);
-            return;
-        }
-
+        // For a single-scene game, just replace the Instance every time the scene loads.
         Instance = this;
-        DontDestroyOnLoad(gameObject);
     }
 
     private void Update()
     {
         if (isGameOver) return;
-
         timeAlive += Time.deltaTime;
     }
 
@@ -33,12 +26,22 @@ public class GameManager  : MonoBehaviour
         isGameOver = true;
 
         Debug.Log("Game Over! Society lasted " + timeAlive + " seconds.");
+
+        var pop = FindObjectOfType<PopulationManager>();
+        if (pop != null)
+        {
+            pop.OnGameOver();
+        }
     }
 
     public void ResetGame()
     {
+        isGameOver = false;
+        timeAlive = 0f;
         Time.timeScale = 1f;
+
+        // Reload the current scene from scratch
         Scene current = SceneManager.GetActiveScene();
-        SceneManager.LoadScene(current.buildIndex);
+        SceneManager.LoadScene(current.name);
     }
 }

@@ -2170,6 +2170,8 @@ MonoBehaviour:
   gameOverPanel: {fileID: 428662057}
   finalTimeText: {fileID: 59980902}
   bestTimeText: {fileID: 0}
+  restartButton: {fileID: 0}
+  currentPhoneTypeText: {fileID: 0}
 --- !u!1 &2051202932
 GameObject:
   m_ObjectHideFlags: 0
@@ -2206,14 +2208,16 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::UIManager
   productivityManager: {fileID: 2051202937}
   gameManager: {fileID: 2051202938}
-  populationManager: {fileID: 0}
+  populationManager: {fileID: 2051202936}
   timeText: {fileID: 1603660715}
   statusText: {fileID: 1069155012}
-  productivitySlider: {fileID: 0}
+  productivitySlider: {fileID: 1491242941}
   productivityText: {fileID: 0}
   gameOverPanel: {fileID: 428662057}
   finalTimeText: {fileID: 59980902}
   bestTimeText: {fileID: 0}
+  restartButton: {fileID: 846973591}
+  currentPhoneTypeText: {fileID: 0}
 --- !u!114 &2051202934
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2227,11 +2231,13 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PhoneDropManager
   productivityManager: {fileID: 2051202937}
+  populationManager: {fileID: 2051202936}
   phonePrefab: {fileID: 7567680274285270222, guid: 1d86ea5dc0272304d8bad2d9f9bae4a8, type: 3}
   mainCamera: {fileID: 330585545}
   spawnHeight: 5
   phoneLifetime: 5
   phoneCooldown: 3
+  currentPhoneType: 0
 --- !u!114 &2051202935
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2268,6 +2274,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: '::'
   productivityManager: {fileID: 2051202937}
+  buildingManager: {fileID: 0}
   villagerPrefab: {fileID: 2209283127405161960, guid: 759cdbd63ee97f1488304c0212a88af4, type: 3}
   initialVillagerCount: 20
   spawnAreaCenter: {x: 0, y: 0}
@@ -2275,6 +2282,11 @@ MonoBehaviour:
   villagers:
   - {fileID: 2209283127405161960, guid: 759cdbd63ee97f1488304c0212a88af4, type: 3}
   stateUpdateInterval: 1.5
+  globalSpeedMultiplier: 1
+  socialMediaKillCount: 2
+  socialMediaRageCount: 2
+  streamingIdleCount: 3
+  movementSlowFactor: 0.8
 --- !u!114 &2051202937
 MonoBehaviour:
   m_ObjectHideFlags: 0

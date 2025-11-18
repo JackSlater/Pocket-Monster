@@ -10,50 +10,46 @@ public class UIManager : MonoBehaviour
     public PopulationManager populationManager;
 
     [Header("HUD")]
-    public TextMeshProUGUI timeText;        // drag TimeText here
-    public TextMeshProUGUI statusText;      // drag StatusText here
-    public Slider productivitySlider;       // used as population bar (0–1)
+    public TextMeshProUGUI timeText;
+    public TextMeshProUGUI statusText;
+    public Slider productivitySlider;   // population bar 0–1
     public TextMeshProUGUI productivityText;
 
     [Header("Game Over")]
-    public GameObject gameOverPanel;        // the panel object
-    public TextMeshProUGUI finalTimeText;   // “You lasted X seconds”
-    public TextMeshProUGUI bestTimeText;    // “Best time: Y seconds”
+    public GameObject gameOverPanel;
+    public TextMeshProUGUI finalTimeText;
+    public TextMeshProUGUI bestTimeText;
+    public Button restartButton;        // <-- assign in Inspector
 
-    private bool gameOverShown = false;
+    [Header("Phone HUD (optional)")]
+    public TextMeshProUGUI currentPhoneTypeText;
 
-    // Smoothed display value for the population bar (0–100%)
-    private float displayedPopulationPercent = 100f;
+    private float bestTime = 0f;
 
-    void Start()
+    private void Start()
     {
         if (gameOverPanel != null)
             gameOverPanel.SetActive(false);
 
-        if (statusText != null)
-            statusText.text = "Status: Running";
-
-        if (gameManager == null)
-            gameManager = FindObjectOfType<GameManager>();
-
-        if (productivityManager == null)
-            productivityManager = FindObjectOfType<ProductivityManager>();
-
-        if (populationManager == null)
-            populationManager = FindObjectOfType<PopulationManager>();
-
-        // Initialise bar full
         if (productivitySlider != null)
         {
-            // Expect slider min/max to be 0–1
-            productivitySlider.normalizedValue = 1f;
+            productivitySlider.minValue = 0f;
+            productivitySlider.maxValue = 1f;
+            productivitySlider.value = 1f;
         }
 
         if (productivityText != null)
             productivityText.text = "Population: 100%";
+
+        // Wire up restart button in code so we don't rely on Inspector events
+        if (restartButton != null)
+        {
+            restartButton.onClick.RemoveAllListeners();
+            restartButton.onClick.AddListener(OnResetButtonPressed);
+        }
     }
 
-    void Update()
+    private void Update()
     {
         if (gameManager == null) return;
 
@@ -61,125 +57,86 @@ public class UIManager : MonoBehaviour
         if (timeText != null)
             timeText.text = $"Time Alive: {gameManager.timeAlive:F1}s";
 
-        // --- Population bar based on phone addiction ---
-        float targetPopulationPercent = GetHealthyPopulationPercent();
+        // --- Population HUD using PopulationManager ---
+        float populationPercent = 100f;
+        if (populationManager != null)
+        {
+            int total = populationManager.GetTotalVillagerCount();
+            int addicted = populationManager.GetPhoneAddictedCount();
 
-        // Smoothly move the bar toward the target so it “slowly drops”
-        displayedPopulationPercent =
-            Mathf.Lerp(displayedPopulationPercent, targetPopulationPercent, 3f * Time.deltaTime);
+            float healthyFraction = 1f;
+            if (total > 0)
+            {
+                healthyFraction = Mathf.Clamp01((float)(total - addicted) / total);
+                populationPercent = healthyFraction * 100f;
+            }
+            else
+            {
+                healthyFraction = 0f;
+                populationPercent = 0f;
+            }
 
-        if (productivitySlider != null)
-            productivitySlider.normalizedValue = Mathf.Clamp01(displayedPopulationPercent / 100f);
+            if (productivitySlider != null)
+                productivitySlider.value = healthyFraction;
 
-        if (productivityText != null)
-            productivityText.text = $"Population: {displayedPopulationPercent:F0}%";
+            if (productivityText != null)
+                productivityText.text = $"Population: {populationPercent:F0}%";
 
-        // --- Game Over UI & Status text ---
+            if (statusText != null)
+                statusText.text = BuildStatusText(populationPercent);
+        }
+
+        // --- Current phone type HUD (optional) ---
+        if (currentPhoneTypeText != null)
+        {
+            var pdm = FindObjectOfType<PhoneDropManager>();
+            if (pdm != null)
+                currentPhoneTypeText.text = $"Current Phone: {pdm.currentPhoneType}";
+        }
+
+        // --- Game over UI ---
         if (gameManager.isGameOver)
         {
-            HandleGameOverUI();
+            if (gameOverPanel != null && !gameOverPanel.activeSelf)
+                gameOverPanel.SetActive(true);
+
+            if (finalTimeText != null)
+                finalTimeText.text = $"You lasted {gameManager.timeAlive:F1} seconds";
+
+            if (gameManager.timeAlive > bestTime)
+                bestTime = gameManager.timeAlive;
+
+            if (bestTimeText != null)
+                bestTimeText.text = $"Best: {bestTime:F1} s";
         }
         else
         {
-            gameOverShown = false;
-
-            if (gameOverPanel != null)
+            if (gameOverPanel != null && gameOverPanel.activeSelf)
                 gameOverPanel.SetActive(false);
-
-            if (statusText != null)
-                statusText.text = BuildStatusMessage(targetPopulationPercent);
         }
     }
 
-    private void HandleGameOverUI()
-    {
-        if (gameOverShown) return;
-        gameOverShown = true;
-
-        if (statusText != null)
-            statusText.text = "Status: Game Over";
-
-        if (gameOverPanel != null)
-            gameOverPanel.SetActive(true);
-
-        if (finalTimeText != null)
-            finalTimeText.text = $"You lasted {gameManager.timeAlive:F1} seconds";
-
-        float bestTime = PlayerPrefs.GetFloat("BestTime", 0f);
-        if (gameManager.timeAlive > bestTime)
-        {
-            bestTime = gameManager.timeAlive;
-            PlayerPrefs.SetFloat("BestTime", bestTime);
-        }
-
-        if (bestTimeText != null)
-            bestTimeText.text = $"Best time: {bestTime:F1} s";
-    }
-
-    // Called by the Restart button OnClick()
+    // called by restartButton.onClick
     public void OnResetButtonPressed()
     {
         if (gameManager != null)
+        {
+            Debug.Log("UIManager: Restart button pressed.");
             gameManager.ResetGame();
-    }
-
-    // Optional: external callers can push a population percentage [0–100]
-    public void UpdateProductivityUI(float value)
-    {
-        displayedPopulationPercent = value;
-
-        if (productivitySlider != null)
-            productivitySlider.normalizedValue = Mathf.Clamp01(value / 100f);
-
-        if (productivityText != null)
-            productivityText.text = $"Population: {value:F0}%";
-    }
-
-    // ----------------- Helper methods -----------------
-
-    // 0–100% of villagers who are NOT phone addicted
-    private float GetHealthyPopulationPercent()
-    {
-        if (populationManager == null)
-            return 100f;
-
-        int total = populationManager.GetTotalVillagerCount();
-        if (total <= 0)
-            return 0f;
-
-        int addicted = populationManager.GetPhoneAddictedCount();
-        float healthyFraction = 1f - (float)addicted / total;
-        healthyFraction = Mathf.Clamp01(healthyFraction);
-
-        return healthyFraction * 100f;
-    }
-
-    private string BuildStatusMessage(float populationPercent)
-    {
-        // Optionally factor in productivity band as a "mood"
-        ProductivityBand band = productivityManager != null
-            ? productivityManager.GetBand()
-            : ProductivityBand.Thriving;
-
-        if (populationPercent >= 75f)
-        {
-            switch (band)
-            {
-                case ProductivityBand.Thriving:
-                    return "Status: Thriving – everyone focused";
-                case ProductivityBand.Declining:
-                    return "Status: Busy but distracted";
-                default:
-                    return "Status: Holding on";
-            }
         }
-        else if (populationPercent >= 40f)
-        {
+    }
+
+    private string BuildStatusText(float populationPercent)
+    {
+        if (populationPercent >= 80f)
+            return "Status: Thriving – most villagers are productive";
+        if (populationPercent >= 60f)
+            return "Status: Stable – distractions are manageable";
+        if (populationPercent >= 40f)
             return "Status: Warning – phone distractions rising";
-        }
-        else
-        {
-            return "Status: Crisis – most of the population is addicted";
-        }
+        if (populationPercent >= 20f)
+            return "Status: Crisis – majority are addicted";
+
+        return "Status: Collapse – society is falling apart";
     }
 }

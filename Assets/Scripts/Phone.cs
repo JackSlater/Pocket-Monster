@@ -6,6 +6,12 @@ public class Phone : MonoBehaviour
 {
     public bool isActive = true;
 
+    // NEW: true once we hit the ground
+    public bool hasLanded = false;
+
+    // Which phone this instance is (red/yellow/blue/green)
+    public PhoneType phoneType = PhoneType.SocialMediaRed;
+
     private PhoneDropManager manager;
     private Rigidbody2D rb;
 
@@ -31,15 +37,16 @@ public class Phone : MonoBehaviour
     {
         if (!isActive) return;
 
-        // We only care about hitting the ground, which should be tagged "Ground"
         if (collision.collider.CompareTag("Ground"))
         {
+            hasLanded = true; // <- now villagers are allowed to interact
+
             if (manager != null)
             {
                 manager.OnPhoneLanded(this);
             }
 
-            // Stop moving so it sits on the ground
+            // Sit on the ground
             if (rb != null)
             {
                 rb.velocity = Vector2.zero;
