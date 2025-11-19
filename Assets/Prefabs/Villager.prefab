@@ -79,8 +79,8 @@ SpriteRenderer:
   m_AutoUVMaxAngle: 89
   m_LightmapParameters: {fileID: 0}
   m_GlobalIlluminationMeshLod: 0
-  m_SortingLayerID: 0
-  m_SortingLayer: 0
+  m_SortingLayerID: 1815628165
+  m_SortingLayer: 2
   m_SortingOrder: 1
   m_Sprite: {fileID: 7482667652216324306, guid: 311925a002f4447b3a28927169b83ea6, type: 3}
   m_Color: {r: 0, g: 1, b: 0, a: 1}
@@ -175,10 +175,10 @@ MonoBehaviour:
   workEffortPerSecond: 10
   workOffsetDistance: 0.4
   workOffsetVerticalJitter: 0.1
-  heightVariation: 0.2
   lockToGround: 1
   groundY: -0.8
   animator: {fileID: 0}
   spriteRenderer: {fileID: 2309048044552605318}
   buildingManager: {fileID: 0}
   productivityManager: {fileID: 0}
+  populationManager: {fileID: 0}

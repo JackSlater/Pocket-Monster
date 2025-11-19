@@ -78,8 +78,8 @@ SpriteRenderer:
   m_AutoUVMaxAngle: 89
   m_LightmapParameters: {fileID: 0}
   m_GlobalIlluminationMeshLod: 0
-  m_SortingLayerID: 0
-  m_SortingLayer: 0
+  m_SortingLayerID: 1815628165
+  m_SortingLayer: 2
   m_SortingOrder: 0
   m_Sprite: {fileID: 7482667652216324306, guid: 311925a002f4447b3a28927169b83ea6, type: 3}
   m_Color: {r: 0.32704395, g: 0.31851974, b: 0.30544668, a: 1}
@@ -155,7 +155,10 @@ MonoBehaviour:
   constructionRequirement: 100
   constructionProgress: 100
   spriteRenderer: {fileID: 0}
+  visualRoot: {fileID: 0}
   minBuiltScale: {x: 1, y: 0.2, z: 1}
   maxBuiltScale: {x: 1, y: 1, z: 1}
   underConstructionColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
   finishedColor: {r: 0, g: 1, b: 0, a: 1}
+  baseOffsetY: 0
+  spriteHalfHeightLocal: 0
