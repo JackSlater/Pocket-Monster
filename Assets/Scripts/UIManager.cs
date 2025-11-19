@@ -44,11 +44,30 @@ public class UIManager : MonoBehaviour
 
     private float bestTime = 0f;
 
+    // -------------------------------
+    // HOW TO PLAY / INTRO
+    // -------------------------------
+    [Header("How To Play / Intro")]
+    public GameObject howToPlayPanel;          // full-screen infographic panel
+    public Button howToPlayPlayButton;         // "Play" button at bottom of infographic
+    public bool showHowToPlayOnStart = true;   // show on scene load?
+    private bool isShowingHowToPlay = false;
+
     private void Start()
     {
+        // Make sure we have references if not wired
+        if (gameManager == null)
+            gameManager = FindObjectOfType<GameManager>();
+        if (populationManager == null)
+            populationManager = FindObjectOfType<PopulationManager>();
+        if (productivityManager == null)
+            productivityManager = FindObjectOfType<ProductivityManager>();
+
+        // Initial game over panel state
         if (gameOverPanel != null)
             gameOverPanel.SetActive(false);
 
+        // Population / productivity slider
         if (productivitySlider != null)
         {
             productivitySlider.minValue = 0f;
@@ -66,6 +85,7 @@ public class UIManager : MonoBehaviour
             restartButton.onClick.AddListener(OnResetButtonPressed);
         }
 
+        // Phone drop manager reference
         if (phoneDropManager == null)
             phoneDropManager = FindObjectOfType<PhoneDropManager>();
 
@@ -82,6 +102,42 @@ public class UIManager : MonoBehaviour
         // Initialize selection highlight once
         if (phoneDropManager != null)
             UpdatePhoneSelectionUI(phoneDropManager.currentPhoneType);
+
+        // -------------------------------
+        // HOW TO PLAY SETUP
+        // -------------------------------
+        // Wire the Play button
+        if (howToPlayPlayButton != null)
+        {
+            howToPlayPlayButton.onClick.RemoveAllListeners();
+            howToPlayPlayButton.onClick.AddListener(OnHowToPlayPlayPressed);
+        }
+
+        if (showHowToPlayOnStart && howToPlayPanel != null)
+        {
+            // Show infographic and pause the simulation
+            isShowingHowToPlay = true;
+            howToPlayPanel.SetActive(true);
+
+            // Pause gameplay logic (physics + Time.deltaTime based systems)
+            Time.timeScale = 0f;
+
+            // Prevent dropping phones during the tutorial
+            if (phoneDropManager != null)
+                phoneDropManager.enabled = false;
+        }
+        else
+        {
+            // Skip tutorial
+            isShowingHowToPlay = false;
+            if (howToPlayPanel != null)
+                howToPlayPanel.SetActive(false);
+
+            Time.timeScale = 1f;
+
+            if (phoneDropManager != null)
+                phoneDropManager.enabled = true;
+        }
     }
 
     private void Update()
@@ -163,6 +219,25 @@ public class UIManager : MonoBehaviour
             Debug.Log("UIManager: Restart button pressed.");
             gameManager.ResetGame();
         }
+    }
+
+    // called by How To Play Play button
+    public void OnHowToPlayPlayPressed()
+    {
+        if (!isShowingHowToPlay)
+            return;
+
+        isShowingHowToPlay = false;
+
+        if (howToPlayPanel != null)
+            howToPlayPanel.SetActive(false);
+
+        // Resume gameplay
+        Time.timeScale = 1f;
+
+        // Re-enable phone dropping
+        if (phoneDropManager != null)
+            phoneDropManager.enabled = true;
     }
 
     private string BuildStatusText(float populationPercent)
