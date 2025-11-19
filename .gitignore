@@ -1,3 +1,7 @@
+# ------------------------------------------------------------
+# UNITY DEFAULT IGNORE (DO NOT REMOVE)
+# ------------------------------------------------------------
+
 # Unity generated folders (do NOT commit)
 Library/
 Temp/
@@ -21,3 +25,17 @@ Library/PackageCache/
 # OS junk
 .DS_Store
 Thumbs.db
+
+# ------------------------------------------------------------
+# EXCEPTIONS FOR GITHUB PAGES WEBGL BUILD
+# ------------------------------------------------------------
+
+# Allow WebGL build inside docs/ for GitHub Pages
+!docs/
+!docs/index.html
+!docs/Build/
+!docs/Build/**
+!docs/TemplateData/
+!docs/TemplateData/**
+!docs/StreamingAssets/
+!docs/StreamingAssets/**
