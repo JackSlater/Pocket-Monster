@@ -62,13 +62,13 @@ Assets/
 ## 🖼️ Screenshots
 
 ### How To Play Screen
-![How To Play](/mnt/data/a56bcd78-ac12-4723-ae6d-c8c53d83e65b.png)
+![How To Play](Screenshots/HowToPlay.png)
 
 ### Village Starting State
-![Village Starting](/mnt/data/f5eb0ac6-4b60-464a-acfc-678743fde130.png)
+![Village Starting](Screenshots/VillageStarting.png)
 
 ### Gameplay Example
-![Gameplay](/mnt/data/8e2c86db-9bdf-4055-ba5e-44786a9c2f91.png)
+![Gameplay](Screenshots/Gameplay.png)
 
 ---
 
