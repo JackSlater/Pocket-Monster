@@ -14,12 +14,13 @@ public class UIManager : MonoBehaviour
     public TextMeshProUGUI statusText;
     public Slider productivitySlider;   // population bar 0–1
     public TextMeshProUGUI productivityText;
+    public TextMeshProUGUI bestTimeHUDText;    // shows "Best Time: xx.xs" during play
 
     [Header("Game Over")]
     public GameObject gameOverPanel;
     public TextMeshProUGUI finalTimeText;
-    public TextMeshProUGUI bestTimeText;
-    public Button restartButton;        // <-- assign in Inspector
+    public TextMeshProUGUI bestTimeText;       // shows "High Score: xx.x seconds" on panel
+    public Button restartButton;
 
     [Header("Phone HUD (optional)")]
     public TextMeshProUGUI currentPhoneTypeText;
@@ -31,18 +32,19 @@ public class UIManager : MonoBehaviour
     public Image mainstreamPhoneBox;    // blue phone icon box
     public Image gamblingPhoneBox;      // green phone icon box
 
-    // These are no longer used to override color; we’ll keep them just so Unity
-    // doesn’t lose serialized data, but we’ll drive highlight from the base colors.
     public Color selectedPhoneBoxColor   = Color.white;
     public Color deselectedPhoneBoxColor = new Color(1f, 1f, 1f, 0.3f);
 
-    // Store each button's original color (the one you set in the Image)
+    // original button colors
     private Color socialBaseColor;
     private Color streamingBaseColor;
     private Color mainstreamBaseColor;
     private Color gamblingBaseColor;
 
+    // --- HIGH SCORE PERSISTENCE ---
+    private const string BestTimeKey = "BestTime";
     private float bestTime = 0f;
+    private bool hasSavedBestThisRun = false;
 
     // -------------------------------
     // HOW TO PLAY / INTRO
@@ -55,7 +57,6 @@ public class UIManager : MonoBehaviour
 
     private void Start()
     {
-        // Make sure we have references if not wired
         if (gameManager == null)
             gameManager = FindObjectOfType<GameManager>();
         if (populationManager == null)
@@ -63,11 +64,9 @@ public class UIManager : MonoBehaviour
         if (productivityManager == null)
             productivityManager = FindObjectOfType<ProductivityManager>();
 
-        // Initial game over panel state
         if (gameOverPanel != null)
             gameOverPanel.SetActive(false);
 
-        // Population / productivity slider
         if (productivitySlider != null)
         {
             productivitySlider.minValue = 0f;
@@ -78,18 +77,15 @@ public class UIManager : MonoBehaviour
         if (productivityText != null)
             productivityText.text = "Population: 100%";
 
-        // Wire up restart button in code so we don't rely on Inspector events
         if (restartButton != null)
         {
             restartButton.onClick.RemoveAllListeners();
             restartButton.onClick.AddListener(OnResetButtonPressed);
         }
 
-        // Phone drop manager reference
         if (phoneDropManager == null)
             phoneDropManager = FindObjectOfType<PhoneDropManager>();
 
-        // Cache the original button colors (red, yellow, blue, green)
         if (socialMediaPhoneBox != null)
             socialBaseColor = socialMediaPhoneBox.color;
         if (streamingPhoneBox != null)
@@ -99,14 +95,16 @@ public class UIManager : MonoBehaviour
         if (gamblingPhoneBox != null)
             gamblingBaseColor = gamblingPhoneBox.color;
 
-        // Initialize selection highlight once
         if (phoneDropManager != null)
             UpdatePhoneSelectionUI(phoneDropManager.currentPhoneType);
+
+        // --- LOAD PERSISTENT BEST TIME ---
+        bestTime = PlayerPrefs.GetFloat(BestTimeKey, 0f);
+        UpdateBestTimeTexts();
 
         // -------------------------------
         // HOW TO PLAY SETUP
         // -------------------------------
-        // Wire the Play button
         if (howToPlayPlayButton != null)
         {
             howToPlayPlayButton.onClick.RemoveAllListeners();
@@ -115,20 +113,15 @@ public class UIManager : MonoBehaviour
 
         if (showHowToPlayOnStart && howToPlayPanel != null)
         {
-            // Show infographic and pause the simulation
             isShowingHowToPlay = true;
             howToPlayPanel.SetActive(true);
-
-            // Pause gameplay logic (physics + Time.deltaTime based systems)
             Time.timeScale = 0f;
 
-            // Prevent dropping phones during the tutorial
             if (phoneDropManager != null)
                 phoneDropManager.enabled = false;
         }
         else
         {
-            // Skip tutorial
             isShowingHowToPlay = false;
             if (howToPlayPanel != null)
                 howToPlayPanel.SetActive(false);
@@ -144,11 +137,11 @@ public class UIManager : MonoBehaviour
     {
         if (gameManager == null) return;
 
-        // --- Time alive HUD ---
+        // Time HUD
         if (timeText != null)
             timeText.text = $"Time Alive: {gameManager.timeAlive:F1}s";
 
-        // --- Population HUD using PopulationManager ---
+        // Population HUD
         float populationPercent = 100f;
         if (populationManager != null)
         {
@@ -177,7 +170,7 @@ public class UIManager : MonoBehaviour
                 statusText.text = BuildStatusText(populationPercent);
         }
 
-        // --- Current phone type HUD + highlight ---
+        // Phone HUD
         if (phoneDropManager == null)
             phoneDropManager = FindObjectOfType<PhoneDropManager>();
 
@@ -189,7 +182,7 @@ public class UIManager : MonoBehaviour
             UpdatePhoneSelectionUI(phoneDropManager.currentPhoneType);
         }
 
-        // --- Game over UI ---
+        // Game over + high score
         if (gameManager.isGameOver)
         {
             if (gameOverPanel != null && !gameOverPanel.activeSelf)
@@ -199,10 +192,18 @@ public class UIManager : MonoBehaviour
                 finalTimeText.text = $"You lasted {gameManager.timeAlive:F1} seconds";
 
             if (gameManager.timeAlive > bestTime)
+            {
                 bestTime = gameManager.timeAlive;
 
-            if (bestTimeText != null)
-                bestTimeText.text = $"Best: {bestTime:F1} s";
+                if (!hasSavedBestThisRun)
+                {
+                    PlayerPrefs.SetFloat(BestTimeKey, bestTime);
+                    PlayerPrefs.Save();
+                    hasSavedBestThisRun = true;
+                }
+            }
+
+            UpdateBestTimeTexts();
         }
         else
         {
@@ -211,17 +212,18 @@ public class UIManager : MonoBehaviour
         }
     }
 
-    // called by restartButton.onClick
+    // Restart button
     public void OnResetButtonPressed()
     {
         if (gameManager != null)
         {
             Debug.Log("UIManager: Restart button pressed.");
             gameManager.ResetGame();
+            hasSavedBestThisRun = false;
         }
     }
 
-    // called by How To Play Play button
+    // How To Play Play button
     public void OnHowToPlayPlayPressed()
     {
         if (!isShowingHowToPlay)
@@ -232,10 +234,8 @@ public class UIManager : MonoBehaviour
         if (howToPlayPanel != null)
             howToPlayPanel.SetActive(false);
 
-        // Resume gameplay
         Time.timeScale = 1f;
 
-        // Re-enable phone dropping
         if (phoneDropManager != null)
             phoneDropManager.enabled = true;
     }
@@ -254,10 +254,7 @@ public class UIManager : MonoBehaviour
         return "Status: Collapse – society is falling apart";
     }
 
-    // -------------------------------------------------
-    // PHONE SELECTION UI – highlight using alpha only
-    // -------------------------------------------------
-
+    // --- Phone selection highlight ---
     private void UpdatePhoneSelectionUI(PhoneType selectedType)
     {
         float selectedAlpha = 1f;
@@ -300,24 +297,18 @@ public class UIManager : MonoBehaviour
         UpdatePhoneSelectionUI(type);
     }
 
-    // Hook these up to the 4 UI buttons in the Inspector
-    public void OnSelectSocialMediaPhone()
-    {
-        SetSelectedPhoneType(PhoneType.SocialMediaRed);
-    }
+    public void OnSelectSocialMediaPhone()  => SetSelectedPhoneType(PhoneType.SocialMediaRed);
+    public void OnSelectStreamingPhone()    => SetSelectedPhoneType(PhoneType.StreamingYellow);
+    public void OnSelectMainstreamPhone()   => SetSelectedPhoneType(PhoneType.MainstreamBlue);
+    public void OnSelectGamblingPhone()     => SetSelectedPhoneType(PhoneType.GamblingGreen);
 
-    public void OnSelectStreamingPhone()
+    // Update both HUD and Game Over best-time labels
+    private void UpdateBestTimeTexts()
     {
-        SetSelectedPhoneType(PhoneType.StreamingYellow);
-    }
+        if (bestTimeText != null)
+            bestTimeText.text = $"High Score: {bestTime:F1} seconds";
 
-    public void OnSelectMainstreamPhone()
-    {
-        SetSelectedPhoneType(PhoneType.MainstreamBlue);
-    }
-
-    public void OnSelectGamblingPhone()
-    {
-        SetSelectedPhoneType(PhoneType.GamblingGreen);
+        if (bestTimeHUDText != null)
+            bestTimeHUDText.text = $"Best Time: {bestTime:F1}s";
     }
 }
