@@ -91,15 +91,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 42b4f3b12b5ac5e4fb674b4b9ae7c403, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Building
-  buildingName: Structure
   currentState: 0
-  constructionRequirement: 100
+  constructionRequired: 100
   constructionProgress: 0
-  spriteRenderer: {fileID: 0}
-  visualRoot: {fileID: 0}
-  minBuiltScale: {x: 1, y: 0.2, z: 1}
-  maxBuiltScale: {x: 1, y: 1, z: 1}
-  underConstructionColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
-  finishedColor: {r: 0, g: 1, b: 0, a: 1}
-  baseOffsetY: 0
-  spriteHalfHeightLocal: 0
+  maxHealth: 100
+  currentHealth: 100
+  completedVisual: {fileID: 0}
+  underConstructionVisual: {fileID: 0}

@@ -11,13 +11,19 @@ public class PhoneDropManager : MonoBehaviour
     public Camera mainCamera;
 
     [Header("Drop Settings")]
-    public float spawnHeight = 5f;
-    public float phoneLifetime = 5f;
+    public float spawnHeight   = 5f;
+    public float phoneLifetime = 5f;   // 0 = no timeout
     public float phoneCooldown = 3f;
+    public float minHorizontalX = -8f;
+    public float maxHorizontalX =  8f;
 
-    [Header("Phone Type Selection")]
+    [Header("Input")]
+    public bool enableClickToDrop = true;
+
+    [Header("Debug")]
     public PhoneType currentPhoneType = PhoneType.SocialMediaRed;
 
+    // Runtime state
     private Phone activePhone;
     private float cooldownTimer = 0f;
 
@@ -38,148 +44,97 @@ public class PhoneDropManager : MonoBehaviour
         if (GameManager.Instance != null && GameManager.Instance.isGameOver)
             return;
 
-        HandlePhoneTypeSelection();
-
         if (cooldownTimer > 0f)
             cooldownTimer -= Time.deltaTime;
 
+        if (!enableClickToDrop)
+            return;
+
+        // Ignore clicks over UI
+        if (EventSystem.current != null &&
+            EventSystem.current.IsPointerOverGameObject())
+            return;
+
         if (Input.GetMouseButtonDown(0))
         {
-            // Ignore UI clicks
-            if (EventSystem.current != null &&
-                EventSystem.current.IsPointerOverGameObject())
-                return;
-
-            TrySpawnPhoneAtClick();
+            TryDropPhoneAtMouse();
         }
     }
 
-    // Called from keyboard (1–4) AND from UI buttons
-    public void SetCurrentPhoneType(PhoneType newType)
+    // Called by UI buttons (Social / Streaming / Mainstream / Gambling)
+    public void SetCurrentPhoneType(PhoneType type)
     {
-        currentPhoneType = newType;
+        currentPhoneType = type;
     }
 
-    private void HandlePhoneTypeSelection()
+    // -------------------------------------------------
+    // SPAWNING
+    // -------------------------------------------------
+    private void TryDropPhoneAtMouse()
     {
-        if (Input.GetKeyDown(KeyCode.Alpha1))
-            SetCurrentPhoneType(PhoneType.SocialMediaRed);
-        else if (Input.GetKeyDown(KeyCode.Alpha2))
-            SetCurrentPhoneType(PhoneType.StreamingYellow);
-        else if (Input.GetKeyDown(KeyCode.Alpha3))
-            SetCurrentPhoneType(PhoneType.MainstreamBlue);
-        else if (Input.GetKeyDown(KeyCode.Alpha4))
-            SetCurrentPhoneType(PhoneType.GamblingGreen);
-    }
-
-    private void TrySpawnPhoneAtClick()
-    {
-        if (phonePrefab == null || mainCamera == null)
+        if (cooldownTimer > 0f) return;
+        if (activePhone != null && activePhone.isActive) return;
+        if (phonePrefab == null) return;
+        if (mainCamera == null)
         {
-            Debug.LogWarning("PhoneDropManager: Missing phonePrefab or mainCamera.");
+            Debug.LogWarning("PhoneDropManager: mainCamera not set.");
             return;
         }
 
-        // Only one active phone + respect cooldown
+        Vector3 mouseWorld = mainCamera.ScreenToWorldPoint(Input.mousePosition);
+        float clampedX = Mathf.Clamp(mouseWorld.x, minHorizontalX, maxHorizontalX);
+        Vector3 spawnPos = new Vector3(clampedX, spawnHeight, 0f);
+
+        SpawnPhone(spawnPos, currentPhoneType);
+    }
+
+    public void SpawnPhone(Vector3 worldPosition, PhoneType phoneType)
+    {
+        if (phonePrefab == null)
+        {
+            Debug.LogWarning("PhoneDropManager: phonePrefab is not set.");
+            return;
+        }
+
         if (activePhone != null && activePhone.isActive)
             return;
-        if (cooldownTimer > 0f)
-            return;
 
-        Vector3 screenPos = Input.mousePosition;
-        Vector3 worldPos = mainCamera.ScreenToWorldPoint(screenPos);
-        worldPos.z = 0f;
+        GameObject phoneObj = Instantiate(phonePrefab, worldPosition, Quaternion.identity);
+        Phone phone = phoneObj.GetComponent<Phone>();
+        if (phone == null)
+            phone = phoneObj.AddComponent<Phone>();
 
-        Vector3 spawnPos = worldPos + Vector3.up * spawnHeight;
-
-        GameObject phoneObj = Instantiate(phonePrefab, spawnPos, Quaternion.identity);
-        activePhone = phoneObj.GetComponent<Phone>();
-        if (activePhone == null)
-            activePhone = phoneObj.AddComponent<Phone>();
-
-        // Set the gameplay type
-        activePhone.phoneType = currentPhoneType;
-
-        // Color the phone based on its type
-        SpriteRenderer sr = phoneObj.GetComponent<SpriteRenderer>();
-        if (sr != null)
-        {
-            switch (currentPhoneType)
-            {
-                case PhoneType.SocialMediaRed:
-                    sr.color = Color.red;
-                    break;
-                case PhoneType.StreamingYellow:
-                    sr.color = Color.yellow;
-                    break;
-                case PhoneType.MainstreamBlue:
-                    sr.color = Color.blue;
-                    break;
-                case PhoneType.GamblingGreen:
-                    sr.color = Color.green;
-                    break;
-                default:
-                    sr.color = Color.white;
-                    break;
-            }
-        }
-
-        Rigidbody2D rb = phoneObj.GetComponent<Rigidbody2D>();
-        if (rb == null) rb = phoneObj.AddComponent<Rigidbody2D>();
-        rb.gravityScale = 1f;
-
-        // Tell population that a phone dropped (so villagers freeze + one chases)
-        if (populationManager != null)
-            populationManager.OnPhoneDropped(activePhone);
-
-        if (phoneLifetime > 0f)
-            StartCoroutine(PhoneLifetimeRoutine(activePhone, phoneLifetime));
+        // Let the phone know who owns it & what type it is
+        phone.Initialize(this, phoneType, phoneLifetime);
+        activePhone = phone;
     }
 
-    private IEnumerator PhoneLifetimeRoutine(Phone phone, float lifetime)
-    {
-        float t = 0f;
-        while (t < lifetime && phone != null && phone.isActive)
-        {
-            t += Time.deltaTime;
-            yield return null;
-        }
+    // -------------------------------------------------
+    // EVENTS FROM PHONE
+    // -------------------------------------------------
 
-        if (phone != null && phone.isActive)
-            phone.DisablePhone();
-    }
-
+    // Phone hit the ground for the first time
     public void OnPhoneLanded(Phone phone)
     {
-        // Generic productivity impact
         if (productivityManager != null)
             productivityManager.ApplyPhoneDrop();
 
-        if (populationManager == null || phone == null)
-            return;
-
-        switch (phone.phoneType)
-        {
-            case PhoneType.SocialMediaRed:
-                populationManager.ApplySocialMediaPhone(phone);
-                break;
-            case PhoneType.StreamingYellow:
-                populationManager.ApplyStreamingPhone(phone);
-                break;
-            case PhoneType.MainstreamBlue:
-                populationManager.ApplyMainstreamMediaPhone();
-                break;
-            case PhoneType.GamblingGreen:
-                populationManager.ApplyGamblingPhone(phone);
-                break;
-        }
+        if (populationManager != null && phone != null)
+            populationManager.OnPhoneDropped(phone);
     }
 
+    // Player clicked/tapped the phone
     public void OnPhoneTapped(Phone phone)
     {
-        // No extra logic needed here; DisablePhone() will be called.
+        if (phone == null || !phone.isActive)
+            return;
+
+        // Just disable it early
+        phone.DisablePhone();
+        // DisablePhone() will call OnPhoneDisabled below.
     }
 
+    // Phone is being removed (timeout or tap or villager pickup)
     public void OnPhoneDisabled(Phone phone)
     {
         if (phone == activePhone)

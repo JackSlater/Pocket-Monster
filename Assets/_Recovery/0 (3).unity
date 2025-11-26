@@ -386,7 +386,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: 
+  m_text: New Text
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
@@ -4138,7 +4138,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: '::'
   buildings: []
-  buildingPrefab: {fileID: 4835365293954276272, guid: b93f07d78a06e4a40822158172376bf0, type: 3}
+  buildingPrefab: {fileID: 7253797643393673830, guid: b93f07d78a06e4a40822158172376bf0, type: 3}
   spawnPoints:
   - {fileID: 176484992}
   - {fileID: 648199447}
@@ -4174,7 +4174,6 @@ MonoBehaviour:
   socialMediaRageCount: 2
   streamingIdleCount: 3
   movementSlowFactor: 0.8
-  maxPhoneStareTime: 6
 --- !u!114 &2051202937
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -4216,8 +4215,6 @@ MonoBehaviour:
     storedProgress: 0
   farmingBonusMultiplier: 0.25
   infrastructureBonusMultiplier: 0.25
-  currentProductivity: 100
-  productivityFactor: 1
 --- !u!114 &2051202938
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -4619,17 +4616,13 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
-    - target: {fileID: 4835365293954276272, guid: b93f07d78a06e4a40822158172376bf0, type: 3}
+    - target: {fileID: 7253797643393673830, guid: b93f07d78a06e4a40822158172376bf0, type: 3}
       propertyPath: visualRoot
       value: 
       objectReference: {fileID: 0}
-    - target: {fileID: 4835365293954276272, guid: b93f07d78a06e4a40822158172376bf0, type: 3}
+    - target: {fileID: 7253797643393673830, guid: b93f07d78a06e4a40822158172376bf0, type: 3}
       propertyPath: spriteRenderer
       value: 
-      objectReference: {fileID: 0}
-    - target: {fileID: 4835365293954276272, guid: b93f07d78a06e4a40822158172376bf0, type: 3}
-      propertyPath: spriteHalfHeightLocal
-      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 8477371554593439251, guid: b93f07d78a06e4a40822158172376bf0, type: 3}
       propertyPath: m_Name

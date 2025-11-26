@@ -1,34 +1,44 @@
 using UnityEngine;
 
+/// <summary>
+/// Overall productivity state of the city, driven by ProductivityManager.
+/// </summary>
 public enum ProductivityBand
 {
-    Thriving,   // >= 75
-    Declining,  // > 0 and < 75
-    Collapse    // <= 0
+    Thriving = 0,   // high productivity
+    Declining = 1,  // starting to slip
+    Collapse  = 2   // very low / effectively broken
 }
 
+/// <summary>
+/// Behaviour state of an individual villager.
+/// </summary>
 public enum PersonState
 {
-    Working,
-    ShiftingAttention,
-    PhoneAddiction,
-    Idle,
-    Destructive
+    Working,            // contributing to buildings
+    Idle,               // not helping
+    ShiftingAttention,  // distracted but not fully lost
+    PhoneAddiction,     // fully lost to phones
+    Destructive         // violent or building-destroyer
 }
 
+/// <summary>
+/// Lifecycle state of a building.
+/// </summary>
 public enum BuildingState
 {
     UnderConstruction = 0,
-    Thriving          = 1,
-    Declining         = 2,
-    Ruined            = 3,
-    Destroyed         = 4
+    Completed         = 1,
+    Destroyed         = 2
 }
 
+/// <summary>
+/// Type of phone being dropped (maps to different effects).
+/// </summary>
 public enum PhoneType
 {
-    SocialMediaRed,     // violent villagers
-    StreamingYellow,    // villagers idle/binge
-    MainstreamBlue,     // everyone slows down
-    GamblingGreen       // building-destroyer villager
+    SocialMediaRed,     // red: violent / chaos via collector
+    StreamingYellow,    // yellow: nearest few go idle/binge
+    MainstreamBlue,     // blue: slows everyone down
+    GamblingGreen       // green: one villager destroys buildings
 }

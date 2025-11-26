@@ -33,30 +33,54 @@ public class Building : MonoBehaviour
 
     private void Awake()
     {
+        // Try to auto-find sprite/visual on first use
         if (spriteRenderer == null)
-            spriteRenderer = GetComponentInChildren<SpriteRenderer>();
-
-        if (visualRoot == null && spriteRenderer != null)
-            visualRoot = spriteRenderer.transform;
-
-        if (spriteRenderer != null && spriteRenderer.sprite != null)
         {
-            spriteHalfHeightLocal = spriteRenderer.sprite.bounds.extents.y;
+            spriteRenderer = GetComponentInChildren<SpriteRenderer>();
         }
 
+        if (visualRoot == null && spriteRenderer != null)
+        {
+            visualRoot = spriteRenderer.transform;
+        }
+
+        CacheSpriteHalfHeight();
         UpdateVisuals();
     }
 
-    private void Start()
+    private void CacheSpriteHalfHeight()
     {
-        // Register with manager
-        BuildingManager manager = FindObjectOfType<BuildingManager>();
-        if (manager != null)
+        if (spriteRenderer == null || spriteRenderer.sprite == null)
         {
-            manager.RegisterBuilding(this);
+            spriteHalfHeightLocal = 0f;
+            return;
         }
+
+        var sprite = spriteRenderer.sprite;
+        float pixelsPerUnit = sprite.pixelsPerUnit;
+        float halfHeightPixels = sprite.rect.height * 0.5f;
+        spriteHalfHeightLocal = halfHeightPixels / pixelsPerUnit;
     }
 
+    private void OnValidate()
+    {
+        if (spriteRenderer == null)
+        {
+            spriteRenderer = GetComponentInChildren<SpriteRenderer>();
+        }
+
+        if (visualRoot == null && spriteRenderer != null)
+        {
+            visualRoot = spriteRenderer.transform;
+        }
+
+        CacheSpriteHalfHeight();
+        UpdateVisuals();
+    }
+
+    /// <summary>
+    /// Tick-based construction logic driven by ProductivityManager.
+    /// </summary>
     public void Tick(float buildingEffort, float infrastructureSupport, float deltaTime, ProductivityBand band)
     {
         if (currentState == BuildingState.Destroyed)
@@ -65,40 +89,85 @@ public class Building : MonoBehaviour
             return;
         }
 
-        if (currentState == BuildingState.UnderConstruction && buildingEffort > 0f)
+        float bandMultiplier = 1f;
+        switch (band)
         {
-            constructionProgress += buildingEffort;
-            constructionProgress = Mathf.Clamp(constructionProgress, 0f, constructionRequirement);
+            case ProductivityBand.Thriving:
+                bandMultiplier = 1.2f;
+                break;
 
-            if (constructionProgress >= constructionRequirement)
-            {
-                constructionProgress = constructionRequirement;
-                currentState = BuildingState.Thriving;
-            }
+            case ProductivityBand.Declining:
+                bandMultiplier = 0.8f;
+                break;
+
+            case ProductivityBand.Collapse:
+                bandMultiplier = 0.4f;
+                break;
+        }
+
+        float effectiveEffort = buildingEffort * bandMultiplier * infrastructureSupport;
+        constructionProgress += effectiveEffort * deltaTime;
+        constructionProgress = Mathf.Clamp(constructionProgress, 0f, constructionRequirement);
+
+        if (constructionProgress >= constructionRequirement &&
+            currentState == BuildingState.UnderConstruction)
+        {
+            currentState = BuildingState.Completed;
         }
 
         UpdateVisuals();
     }
 
+    /// <summary>
+    /// Direct contribution from nearby villagers.
+    /// </summary>
+    public void AddConstructionProgress(float amount)
+    {
+        if (currentState != BuildingState.UnderConstruction)
+            return;
+
+        constructionProgress += amount;
+        constructionProgress = Mathf.Clamp(constructionProgress, 0f, constructionRequirement);
+
+        if (constructionProgress >= constructionRequirement)
+        {
+            currentState = BuildingState.Completed;
+        }
+
+        UpdateVisuals();
+    }
+
+    /// <summary>
+    /// Called by destructive villagers (green phone behavior).
+    /// </summary>
+    public void TakeDamage(float amount)
+    {
+        if (currentState != BuildingState.Completed)
+            return;
+
+        // Simple destroy-on-hit model for now
+        currentState = BuildingState.Destroyed;
+        constructionProgress = 0f;
+        UpdateVisuals();
+    }
+
     private void UpdateVisuals()
     {
-        float build01 = constructionRequirement > 0f
-            ? Mathf.Clamp01(constructionProgress / constructionRequirement)
-            : 1f;
+        if (visualRoot == null && spriteRenderer != null)
+        {
+            visualRoot = spriteRenderer.transform;
+        }
 
         if (visualRoot != null)
         {
-            Vector3 visualScale = Vector3.Lerp(minBuiltScale, maxBuiltScale, build01);
-            visualRoot.localScale = visualScale;
+            float t = Mathf.Clamp01(constructionProgress / Mathf.Max(1f, constructionRequirement));
+            Vector3 targetScale = Vector3.Lerp(minBuiltScale, maxBuiltScale, t);
+            visualRoot.localScale = targetScale;
 
-            if (spriteHalfHeightLocal > 0f)
-            {
-                // Keep base at parent Y, plus optional extra offset
-                float offsetY = spriteHalfHeightLocal * visualScale.y + baseOffsetY;
-                Vector3 lp = visualRoot.localPosition;
-                lp.y = offsetY;
-                visualRoot.localPosition = lp;
-            }
+            // Keep base of building on the ground
+            Vector3 pos = visualRoot.localPosition;
+            pos.y = baseOffsetY + spriteHalfHeightLocal * targetScale.y;
+            visualRoot.localPosition = pos;
         }
 
         if (spriteRenderer != null)
@@ -122,6 +191,7 @@ public class Building : MonoBehaviour
         constructionProgress = 0f;
         UpdateVisuals();
     }
+
     private void OnDrawGizmos()
     {
         Gizmos.color = Color.magenta;

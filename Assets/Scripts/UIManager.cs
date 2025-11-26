@@ -240,6 +240,7 @@ public class UIManager : MonoBehaviour
             phoneDropManager.enabled = true;
     }
 
+    // --- Status line based on population percent ---
     private string BuildStatusText(float populationPercent)
     {
         if (populationPercent >= 80f)

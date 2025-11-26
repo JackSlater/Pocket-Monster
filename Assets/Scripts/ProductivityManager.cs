@@ -10,8 +10,11 @@ public class ProductivityActivity
 
     public float efficiencyMultiplier = 1f;
     public float storageCap = 100f;
+
     [Range(0f, 1f)]
     public float startingFillPercent = 0.25f;
+
+    [Tooltip("How much is lost per second regardless of input productivity.")]
     public float passiveLossPerSecond = 1f;
 
     [SerializeField]
@@ -57,8 +60,10 @@ public class ProductivityManager : MonoBehaviour
 {
     [Header("Productivity Settings")]
     public float baseProductivity = 100f;
+
     [Range(0f, 1f)]
     public float startingFactor = 1f;     // starts full strength
+
     [Range(0f, 1f)]
     public float phoneDecayFactor = 0.9f; // multiply per phone drop
 
@@ -76,29 +81,42 @@ public class ProductivityManager : MonoBehaviour
     public ProductivityActivity farmingActivity = new ProductivityActivity
     {
         label = "Farming",
-        workforceAllocation = 0.35f,
-        efficiencyMultiplier = 0.6f,
-        storageCap = 150f,
-        startingFillPercent = 0.5f,
-        passiveLossPerSecond = 1f
+        workforceAllocation = 0.3f,
+        efficiencyMultiplier = 0.7f,
+        storageCap = 100f,
+        startingFillPercent = 0.4f,
+        passiveLossPerSecond = 1.5f
     };
 
     public ProductivityActivity infrastructureActivity = new ProductivityActivity
     {
         label = "Infrastructure",
-        workforceAllocation = 0.25f,
-        efficiencyMultiplier = 0.45f,
+        workforceAllocation = 0.3f,
+        efficiencyMultiplier = 0.6f,
         storageCap = 100f,
-        startingFillPercent = 0.25f,
-        passiveLossPerSecond = 1.5f
+        startingFillPercent = 0.5f,
+        passiveLossPerSecond = 1f
     };
 
-    [Header("Activity Feedback")]
-    public float farmingBonusMultiplier = 0.25f;
-    public float infrastructureBonusMultiplier = 0.25f;
+    [Header("Synergy Bonuses")]
+    [Tooltip("How strongly farming reserves boost overall productivity.")]
+    public float farmingBonusMultiplier = 0.5f;
 
-    public float CurrentProductivity { get; private set; }
-    public float ProductivityFactor  { get; private set; }
+    [Tooltip("How strongly infrastructure reserves boost overall productivity.")]
+    public float infrastructureBonusMultiplier = 0.5f;
+
+    [Header("Debug / Readonly")]
+    [SerializeField]
+    private float currentProductivity = 100f;
+    public float CurrentProductivity => currentProductivity;
+
+    [SerializeField]
+    private float productivityFactor = 1f;
+    public float ProductivityFactor
+    {
+        get => productivityFactor;
+        private set => productivityFactor = Mathf.Clamp01(value);
+    }
 
     private void Awake()
     {
@@ -116,12 +134,17 @@ public class ProductivityManager : MonoBehaviour
     public void Initialize()
     {
         ProductivityFactor = startingFactor;
-        buildingActivity.Initialize();
-        farmingActivity.Initialize();
-        infrastructureActivity.Initialize();
+
+        if (buildingActivity != null) buildingActivity.Initialize();
+        if (farmingActivity != null) farmingActivity.Initialize();
+        if (infrastructureActivity != null) infrastructureActivity.Initialize();
+
         UpdateProductivity();
     }
 
+    /// <summary>
+    /// Called by PhoneDropManager when a phone lands.
+    /// </summary>
     public void ApplyPhoneDrop()
     {
         ProductivityFactor *= phoneDecayFactor;
@@ -138,8 +161,8 @@ public class ProductivityManager : MonoBehaviour
         if (infrastructureActivity != null)
             multiplier += infrastructureBonusMultiplier * infrastructureActivity.NormalizedProgress;
 
-        CurrentProductivity = baseProductivity * ProductivityFactor * multiplier;
-        CurrentProductivity = Mathf.Max(0f, CurrentProductivity);
+        currentProductivity = baseProductivity * ProductivityFactor * multiplier;
+        currentProductivity = Mathf.Max(0f, currentProductivity);
     }
 
     private void SimulateActivities(float deltaTime)
@@ -147,54 +170,51 @@ public class ProductivityManager : MonoBehaviour
         if (deltaTime <= 0f)
             return;
 
-        float totalAllocation = buildingActivity.workforceAllocation +
-                                farmingActivity.workforceAllocation +
-                                infrastructureActivity.workforceAllocation;
+        float totalAllocation = 0f;
+        if (buildingActivity != null) totalAllocation += buildingActivity.workforceAllocation;
+        if (farmingActivity != null) totalAllocation += farmingActivity.workforceAllocation;
+        if (infrastructureActivity != null) totalAllocation += infrastructureActivity.workforceAllocation;
 
-        if (totalAllocation <= 0f)
+        if (totalAllocation <= 0f || CurrentProductivity <= 0f)
         {
-            buildingActivity.Tick(0f, deltaTime);
-            farmingActivity.Tick(0f, deltaTime);
-            infrastructureActivity.Tick(0f, deltaTime);
+            // Only passive loss applies if there's no productivity to distribute
+            buildingActivity?.Tick(0f, deltaTime);
+            farmingActivity?.Tick(0f, deltaTime);
+            infrastructureActivity?.Tick(0f, deltaTime);
             return;
         }
 
-        float buildingShare = buildingActivity.workforceAllocation / totalAllocation;
-        float farmingShare = farmingActivity.workforceAllocation / totalAllocation;
-        float infrastructureShare = infrastructureActivity.workforceAllocation / totalAllocation;
+        float buildingShare = (buildingActivity != null ? buildingActivity.workforceAllocation : 0f) / totalAllocation;
+        float farmingShare = (farmingActivity != null ? farmingActivity.workforceAllocation : 0f) / totalAllocation;
+        float infrastructureShare = (infrastructureActivity != null ? infrastructureActivity.workforceAllocation : 0f) / totalAllocation;
 
-        buildingActivity.Tick(CurrentProductivity * buildingShare, deltaTime);
-        farmingActivity.Tick(CurrentProductivity * farmingShare, deltaTime);
-        infrastructureActivity.Tick(CurrentProductivity * infrastructureShare, deltaTime);
+        buildingActivity?.Tick(CurrentProductivity * buildingShare, deltaTime);
+        farmingActivity?.Tick(CurrentProductivity * farmingShare, deltaTime);
+        infrastructureActivity?.Tick(CurrentProductivity * infrastructureShare, deltaTime);
 
         UpdateProductivity();
     }
 
-    public float ConsumeBuildingProgress(float desiredAmount)
-    {
-        return buildingActivity.ConsumeProgress(desiredAmount);
-    }
+    // -------------------------------------------------------------------------
+    // Normalized getters for UI
+    // -------------------------------------------------------------------------
 
-    public float ConsumeInfrastructureProgress(float desiredAmount)
-    {
-        return infrastructureActivity.ConsumeProgress(desiredAmount);
-    }
+    public float GetFarmingNormalized() => farmingActivity != null ? farmingActivity.NormalizedProgress : 0f;
+    public float GetInfrastructureNormalized() => infrastructureActivity != null ? infrastructureActivity.NormalizedProgress : 0f;
+    public float GetBuildingNormalized() => buildingActivity != null ? buildingActivity.NormalizedProgress : 0f;
 
-    public float ConsumeFarmingProgress(float desiredAmount)
-    {
-        return farmingActivity.ConsumeProgress(desiredAmount);
-    }
-
-    public float GetFarmingNormalized() => farmingActivity.NormalizedProgress;
-    public float GetInfrastructureNormalized() => infrastructureActivity.NormalizedProgress;
-    public float GetBuildingNormalized() => buildingActivity.NormalizedProgress;
+    // -------------------------------------------------------------------------
+    // Band mapping (Option 1: Thriving / Declining / Collapse)
+    // -------------------------------------------------------------------------
 
     public ProductivityBand GetBand()
     {
         if (CurrentProductivity >= 75f)
             return ProductivityBand.Thriving;
+
         if (CurrentProductivity > 0f)
             return ProductivityBand.Declining;
+
         return ProductivityBand.Collapse;
     }
 }

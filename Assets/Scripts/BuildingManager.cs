@@ -1,10 +1,13 @@
 using System.Collections.Generic;
-using System.Linq;
 using UnityEngine;
 
+/// <summary>
+/// Spawns and tracks all buildings in the level.
+/// Keeps at least targetUnderConstructionCount buildings under construction.
+/// </summary>
 public class BuildingManager : MonoBehaviour
 {
-    [Header("Buildings")]
+    [Header("Buildings (runtime)")]
     public List<Building> buildings = new List<Building>();
 
     [Header("Spawning")]
@@ -14,97 +17,89 @@ public class BuildingManager : MonoBehaviour
 
     private int nextSpawnIndex = 0;
 
+    private void Awake()
+    {
+        // Pick up any buildings that already exist in the scene
+        buildings.Clear();
+        Building[] existing = FindObjectsOfType<Building>();
+        foreach (var b in existing)
+        {
+            if (!buildings.Contains(b))
+                buildings.Add(b);
+        }
+
+        SortBuildingsByPosition();
+    }
+
     private void Start()
     {
-        // Collect any buildings already in the scene
-        var found = FindObjectsOfType<Building>().ToList();
-
-        // Merge with any that might have been added in Inspector (we'll de-dup)
-        buildings.AddRange(found);
-
-        // Remove nulls and duplicates
-        buildings = buildings
-            .Where(b => b != null)
-            .Distinct()
-            .ToList();
-
-        // Sort left-to-right so index order matches what you see on screen
-        SortBuildingsByPosition();
+        EnsureActiveBuildings();
     }
 
     private void Update()
     {
-        if (GameManager.Instance != null && GameManager.Instance.isGameOver)
-            return;
-
         EnsureActiveBuildings();
     }
 
+    /// <summary>
+    /// Make sure we always have at least targetUnderConstructionCount
+    /// buildings in the UnderConstruction state.
+    /// </summary>
     private void EnsureActiveBuildings()
     {
-        int underConstructionCount = 0;
+        CleanupNullEntries();
+
+        int underConstruction = 0;
         foreach (var b in buildings)
         {
             if (b != null && b.currentState == BuildingState.UnderConstruction)
-            {
-                underConstructionCount++;
-            }
+                underConstruction++;
         }
 
-        while (underConstructionCount < targetUnderConstructionCount)
+        while (underConstruction < targetUnderConstructionCount)
         {
-            if (!CanSpawnNewBuilding())
+            Building spawned = SpawnNewBuilding();
+            if (spawned == null)
                 break;
 
-            SpawnNewBuilding();
-            underConstructionCount++;
+            underConstruction++;
         }
     }
 
-    private bool CanSpawnNewBuilding()
+    private Building SpawnNewBuilding()
     {
-        return buildingPrefab != null && spawnPoints.Count > 0;
-    }
-
-    private void SpawnNewBuilding()
-    {
-        if (!CanSpawnNewBuilding()) return;
+        if (buildingPrefab == null || spawnPoints == null || spawnPoints.Count == 0)
+            return null;
 
         Transform spawn = spawnPoints[nextSpawnIndex % spawnPoints.Count];
         nextSpawnIndex++;
 
         Building newBuilding = Instantiate(buildingPrefab, spawn.position, Quaternion.identity);
-
         newBuilding.InitializeAsNewConstruction();
-        RegisterBuilding(newBuilding);
+
+        buildings.Add(newBuilding);
+        SortBuildingsByPosition();
+
+        return newBuilding;
     }
 
-    public void RegisterBuilding(Building building)
+    private void CleanupNullEntries()
     {
-        if (building == null) return;
-
-        if (!buildings.Contains(building))
+        for (int i = buildings.Count - 1; i >= 0; i--)
         {
-            buildings.Add(building);
-            SortBuildingsByPosition();
-        }
-    }
-
-    public void UnregisterBuilding(Building building)
-    {
-        if (building == null) return;
-
-        if (buildings.Contains(building))
-        {
-            buildings.Remove(building);
+            if (buildings[i] == null)
+                buildings.RemoveAt(i);
         }
     }
 
     private void SortBuildingsByPosition()
     {
-        buildings = buildings
-            .Where(b => b != null)
-            .OrderBy(b => b.transform.position.x)   // left → right
-            .ToList();
+        buildings.Sort((a, b) =>
+        {
+            if (a == null && b == null) return 0;
+            if (a == null) return 1;
+            if (b == null) return -1;
+            return a.transform.position.x.CompareTo(b.transform.position.x);
+        });
     }
 }
