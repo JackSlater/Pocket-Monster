@@ -83,7 +83,7 @@ SpriteRenderer:
   m_SortingLayer: 2
   m_SortingOrder: 2
   m_Sprite: {fileID: 21300000, guid: 65f18a96e043d894c99ed057596d5837, type: 3}
-  m_Color: {r: 1, g: 1, b: 1, a: 1}
+  m_Color: {r: 0, g: 1, b: 0, a: 1}
   m_FlipX: 0
   m_FlipY: 0
   m_DrawMode: 0
@@ -173,14 +173,11 @@ MonoBehaviour:
   moveSpeedVariation: 0.75
   closeEnoughDistance: 0.2
   workEffortPerSecond: 10
-  leftWorkOffset: {x: -0.25, y: 0}
-  rightWorkOffset: {x: 0.25, y: 0}
-  violentRange: 0.75
-  timeBetweenAttacks: 1.5
-  destructionTickTime: 1
-  destructionAmountPerTick: 20
+  workOffsetDistance: 0.4
+  workOffsetVerticalJitter: 0.1
   lockToGround: 1
   groundY: -0.8
-  populationManager: {fileID: 0}
+  spriteRenderer: {fileID: 2309048044552605318}
   buildingManager: {fileID: 0}
   productivityManager: {fileID: 0}
+  populationManager: {fileID: 0}

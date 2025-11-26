@@ -36,7 +36,7 @@ public class Villager : MonoBehaviour
     private bool isPhoneChaser = false;
     private Phone targetPhone;
     private float phoneChaseStopDistance = 0.15f;
-    private bool frozenByPhone = false;   // kept for compatibility but we won't set it anymore
+    private bool frozenByPhone = false;
 
     // Destruction / violence
     private bool isBuildingDestroyer = false;
@@ -65,8 +65,17 @@ public class Villager : MonoBehaviour
 
     private void Start()
     {
+        // Force a clean starting state (in case the prefab enum got serialized weird)
+        currentState = PersonState.Working;
+        isPhoneChaser = false;
+        targetPhone = null;
+        isBuildingDestroyer = false;
+        hasKilledSomeone = false;
+        frozenByPhone = false;
+
         float variation = Random.Range(-moveSpeedVariation, moveSpeedVariation);
         actualMoveSpeed = Mathf.Max(0.1f, baseMoveSpeed + variation);
+
         UpdateVisuals();
     }
 
@@ -91,15 +100,27 @@ public class Villager : MonoBehaviour
         }
         else if (currentState == PersonState.PhoneAddiction)
         {
-            // do nothing – phone addicted
+            // phone-addicted villagers just stand there
+            SetWalkingAnimation(false, 0f);
         }
         else if (frozenByPhone)
         {
-            // we won't actually set this anymore, so this should never run
+            // paused by a phone, do nothing
+            SetWalkingAnimation(false, 0f);
         }
         else
         {
-            HandleWorkLogic(dt);
+            // ✅ Only these states are allowed to work/move
+            if (currentState == PersonState.Working ||
+                currentState == PersonState.ShiftingAttention)
+            {
+                HandleWorkLogic(dt);
+            }
+            else
+            {
+                // Idle or any other state: no movement, no building
+                SetWalkingAnimation(false, 0f);
+            }
         }
 
         if (lockToGround)
@@ -117,8 +138,10 @@ public class Villager : MonoBehaviour
         if (buildingManager == null || buildingManager.buildings == null || buildingManager.buildings.Count == 0)
             return;
 
+        // Retarget if no building, or current building is destroyed / completed
         if (currentTargetBuilding == null ||
-            currentTargetBuilding.currentState == BuildingState.Destroyed)
+            currentTargetBuilding.currentState == BuildingState.Destroyed ||
+            currentTargetBuilding.currentState == BuildingState.Completed)
         {
             currentTargetBuilding = SelectBestBuilding();
             PickNewWorkOffset();
@@ -128,8 +151,10 @@ public class Villager : MonoBehaviour
             return;
 
         Vector3 targetPos = currentTargetBuilding.transform.position + currentWorkOffset;
-        float moveSpeed = GetCurrentSpeed();
+        if (lockToGround)
+            targetPos.y = groundY;  // snap to road
 
+        float moveSpeed = GetCurrentSpeed();
         Vector3 delta = targetPos - transform.position;
         float dist = delta.magnitude;
 
@@ -164,11 +189,14 @@ public class Villager : MonoBehaviour
 
     private Building SelectBestBuilding()
     {
-        Building best = null;
-        float bestDist = float.MaxValue;
-
-        if (buildingManager == null || buildingManager.buildings == null)
+        if (buildingManager == null || buildingManager.buildings == null || buildingManager.buildings.Count == 0)
             return null;
+
+        Building bestUnderConstruction = null;
+        float bestUnderDist = float.MaxValue;
+
+        Building bestAny = null;
+        float bestAnyDist = float.MaxValue;
 
         foreach (var b in buildingManager.buildings)
         {
@@ -176,14 +204,29 @@ public class Villager : MonoBehaviour
             if (b.currentState == BuildingState.Destroyed) continue;
 
             float d = Vector2.Distance(transform.position, b.transform.position);
-            if (d < bestDist)
+
+            // Prefer under-construction buildings
+            if (b.currentState == BuildingState.UnderConstruction)
             {
-                bestDist = d;
-                best = b;
+                if (d < bestUnderDist)
+                {
+                    bestUnderDist = d;
+                    bestUnderConstruction = b;
+                }
+            }
+
+            // Fallback: nearest standing building of any non-destroyed state
+            if (d < bestAnyDist)
+            {
+                bestAnyDist = d;
+                bestAny = b;
             }
         }
 
-        return best;
+        if (bestUnderConstruction != null)
+            return bestUnderConstruction;
+
+        return bestAny;
     }
 
     private void PickNewWorkOffset()
@@ -241,18 +284,31 @@ public class Villager : MonoBehaviour
 
             if (targetPhone.hasLanded && targetPhone.isActive)
             {
-                if (populationManager != null)
-                    populationManager.OnVillagerPickedUpPhone(this, targetPhone);
+                // Cache before callbacks
+                Phone collected = targetPhone;
 
-                targetPhone.DisablePhone();
                 isPhoneChaser = false;
                 targetPhone = null;
+
+                if (populationManager != null)
+                    populationManager.OnVillagerPickedUpPhone(this, collected);
+
+                if (collected != null && collected.isActive)
+                    collected.DisablePhone();
             }
         }
     }
 
     public void BecomePhoneChaser(Phone phone)
     {
+        // Never allow idle, already-addicted, or destructive villagers to chase phones
+        if (currentState == PersonState.Idle ||
+            currentState == PersonState.PhoneAddiction ||
+            currentState == PersonState.Destructive)
+        {
+            return;
+        }
+
         targetPhone = phone;
         isPhoneChaser = true;
         frozenByPhone = false;
@@ -260,7 +316,6 @@ public class Villager : MonoBehaviour
 
     public void SetFrozenByPhone(bool frozen)
     {
-        // kept for compatibility with PopulationManager but we don't really use it now
         frozenByPhone = frozen;
         if (!frozen)
         {
@@ -268,10 +323,11 @@ public class Villager : MonoBehaviour
         }
     }
 
-    // ---------------- VIOLENT / DESTRUCTIVE ----------------
+    // ---------------- VIOLENT / DESTRUCTIVE (Social phone) ----------------
 
     private void HandleViolentBehaviour(float dt)
     {
+        // Already killed someone: calm down
         if (hasKilledSomeone)
         {
             SetState(PersonState.Idle);
@@ -281,29 +337,64 @@ public class Villager : MonoBehaviour
         if (populationManager == null || populationManager.villagers == null)
             return;
 
+        // Find nearest valid victim
         Villager target = null;
-        float bestDistSq = 1.5f * 1.5f;
+        float bestDist = float.MaxValue;
 
         foreach (var v in populationManager.villagers)
         {
             if (v == null || v == this) continue;
 
+            // Don’t target people already lost or destructive
             if (v.currentState == PersonState.PhoneAddiction ||
                 v.currentState == PersonState.Destructive)
                 continue;
 
-            float dSq = (v.transform.position - transform.position).sqrMagnitude;
-            if (dSq < bestDistSq)
+            float d = Vector2.Distance(transform.position, v.transform.position);
+            if (d < bestDist)
             {
-                bestDistSq = dSq;
+                bestDist = d;
                 target = v;
             }
         }
 
-        if (target != null)
+        if (target == null)
         {
-            target.SetPhoneAddicted();
+            // No one left to kill
+            SetState(PersonState.Idle);
+            return;
+        }
+
+        Vector3 targetPos = target.transform.position;
+        if (lockToGround) targetPos.y = groundY;
+
+        Vector3 delta = targetPos - transform.position;
+        float dist = delta.magnitude;
+        float moveSpeed = GetCurrentSpeed();
+
+        if (dist > closeEnoughDistance)
+        {
+            // Walk toward the victim
+            Vector3 step = delta.normalized * moveSpeed * dt;
+            if (step.magnitude > dist)
+                step = delta;
+
+            transform.position += step;
+            SetWalkingAnimation(true, step.x);
+        }
+        else
+        {
+            // In range: kill the victim, then become idle
+            SetWalkingAnimation(false, 0f);
+
+            if (populationManager.villagers.Contains(target))
+                populationManager.villagers.Remove(target);
+
+            if (target != null && target.gameObject.scene.IsValid())
+                Destroy(target.gameObject);
+
             hasKilledSomeone = true;
+            SetState(PersonState.Idle);
         }
     }
 
@@ -351,23 +442,36 @@ public class Villager : MonoBehaviour
 
     public void UpdateStateFromProductivity(ProductivityBand band, float currentProductivity)
     {
-        if (currentState == PersonState.PhoneAddiction || currentState == PersonState.Destructive)
+        // Once a villager is Idle, PhoneAddicted, or Destructive,
+        // productivity can NEVER change their state again.
+        if (currentState == PersonState.PhoneAddiction ||
+            currentState == PersonState.Destructive   ||
+            currentState == PersonState.Idle)
+        {
             return;
+        }
 
         switch (band)
         {
             case ProductivityBand.Thriving:
-                if (currentState == PersonState.Idle)
+                // Only move from ShiftingAttention back to Working
+                if (currentState == PersonState.ShiftingAttention)
                     SetState(PersonState.Working);
                 break;
 
             case ProductivityBand.Declining:
+                // Working → ShiftingAttention
                 if (currentState == PersonState.Working)
                     SetState(PersonState.ShiftingAttention);
                 break;
 
             case ProductivityBand.Collapse:
-                SetState(PersonState.Idle);
+                // Working or ShiftingAttention → Idle (and then they stay Idle forever)
+                if (currentState == PersonState.Working ||
+                    currentState == PersonState.ShiftingAttention)
+                {
+                    SetState(PersonState.Idle);
+                }
                 break;
         }
     }
@@ -399,13 +503,13 @@ public class Villager : MonoBehaviour
         switch (currentState)
         {
             case PersonState.Working:
-                spriteRenderer.color = Color.white;
+                spriteRenderer.color = Color.green;
                 break;
             case PersonState.Idle:
-                spriteRenderer.color = new Color(0.85f, 0.85f, 0.85f);
+                spriteRenderer.color = new Color(0.5f, 0.5f, 0.5f);
                 break;
             case PersonState.ShiftingAttention:
-                spriteRenderer.color = new Color(0.9f, 0.9f, 0.6f);
+                spriteRenderer.color = Color.yellow;
                 break;
             case PersonState.PhoneAddiction:
                 spriteRenderer.color = Color.cyan;
@@ -418,7 +522,6 @@ public class Villager : MonoBehaviour
 
     private void SetWalkingAnimation(bool isWalking, float directionX)
     {
-        // Only sprite flip now – no Animator
         if (!isWalking) return;
 
         if (spriteRenderer != null)

@@ -81,6 +81,18 @@ public class PhoneDropManager : MonoBehaviour
             return;
         }
 
+        // ENDING: if only one ACTIVE villager remains (Working or ShiftingAttention)
+        // and the player tries to drop another phone, end the game.
+        if (populationManager != null && GameManager.Instance != null)
+        {
+            int activeCount = populationManager.GetActiveVillagerCount();
+            if (activeCount <= 1)
+            {
+                GameManager.Instance.TriggerGameOver();
+                return;
+            }
+        }
+
         Vector3 mouseWorld = mainCamera.ScreenToWorldPoint(Input.mousePosition);
         float clampedX = Mathf.Clamp(mouseWorld.x, minHorizontalX, maxHorizontalX);
         Vector3 spawnPos = new Vector3(clampedX, spawnHeight, 0f);
