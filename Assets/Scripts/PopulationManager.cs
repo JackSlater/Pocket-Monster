@@ -41,6 +41,21 @@ public class PopulationManager : MonoBehaviour
             buildingManager = FindObjectOfType<BuildingManager>();
     }
 
+    /// <summary>
+    /// Apply a global movement slowdown (e.g. from the Mainstream Media phone).
+    /// Multiplier is clamped between 0.2 and 1.0.
+    /// </summary>
+    public void ApplyMediaPhoneSlowdown(float multiplier)
+    {
+        multiplier = Mathf.Clamp(multiplier, 0.2f, 1f);
+
+        // Only apply if this is actually slower than our current value
+        if (multiplier < globalSpeedMultiplier)
+        {
+            globalSpeedMultiplier = multiplier;
+        }
+    }
+
     private void Start()
     {
         SpawnInitialVillagers();
@@ -78,6 +93,7 @@ public class PopulationManager : MonoBehaviour
     public void RegisterVillager(Villager v)
     {
         if (v == null) return;
+
         if (!villagers.Contains(v))
             villagers.Add(v);
 
@@ -95,8 +111,6 @@ public class PopulationManager : MonoBehaviour
                 villagers.RemoveAt(i);
         }
     }
-
-    // ---------------- PRODUCTIVITY → STATE ----------------
 
     private void UpdateVillagersFromProductivity()
     {
@@ -126,7 +140,7 @@ public class PopulationManager : MonoBehaviour
 
         Vector3 phonePos = phone.transform.position;
 
-        // Pick nearest villager who is not already lost
+        // Pick nearest villager who is not already "lost"
         Villager chaser = null;
         float bestDistSq = float.MaxValue;
 
@@ -156,15 +170,11 @@ public class PopulationManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Called by PhoneDropManager when a phone is removed
-    /// (timeout, tapped, or villager pickup).
+    /// Called when the active phone is removed (timeout, tap, or pickup).
     /// </summary>
     public void OnPhoneCleared()
     {
         CleanupVillagers();
-
-        // Reset any global slow-down that might be in effect.
-        globalSpeedMultiplier = 1f;
 
         // Make sure nobody stays frozen because of a phone that no longer exists.
         foreach (var v in villagers)
@@ -175,16 +185,24 @@ public class PopulationManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Called by Villager when they successfully pick up a phone.
+    /// Called by Villager when a villager actually picks up a phone.
     /// </summary>
     public void OnVillagerPickedUpPhone(Villager collector, Phone phone)
     {
-        CleanupVillagers();
-        if (collector == null) return;
+        if (collector == null || phone == null)
+            return;
 
-        if (phone == null)
+        if (productivityManager == null)
         {
-            // Fallback: no specific type, just become phone-addicted
+            // Fallback: no productivity manager – just become phone-addicted
+            collector.SetPhoneAddicted();
+            return;
+        }
+
+        // Different phone types -> different effects
+        if (!phone.hasLanded)
+        {
+            // Safety: if we somehow pick up before landing, just addict the villager
             collector.SetPhoneAddicted();
         }
         else
@@ -203,9 +221,9 @@ public class PopulationManager : MonoBehaviour
                     break;
 
                 case PhoneType.MainstreamBlue:
-                    // 🔵 Mainstream: phone-addicted + reset any speed penalty
+                    // 🔵 Mainstream: phone-addicted + globally slows all villagers
                     collector.SetPhoneAddicted();
-                    globalSpeedMultiplier = 1f;
+                    ApplyMediaPhoneSlowdown(0.5f);   // 50% movement speed for everyone
                     break;
 
                 case PhoneType.GamblingGreen:
@@ -213,25 +231,31 @@ public class PopulationManager : MonoBehaviour
                     collector.SetPhoneAddicted();
                     collector.BecomeBuildingDestroyer();
                     break;
-            }
-        }
 
-        // Phone is gone, so unfreeze anyone who might have been paused earlier.
-        foreach (var v in villagers)
-        {
-            if (v == null) continue;
-            v.SetFrozenByPhone(false);
+                default:
+                    // Any unknown type – just become addicted
+                    collector.SetPhoneAddicted();
+                    break;
+            }
         }
     }
 
+    /// <summary>
+    /// Streaming phone: set a small number of nearby villagers to Idle.
+    /// </summary>
     private void ApplyStreamingEffect(Vector3 origin)
     {
-        if (streamingIdleCount <= 0) return;
+        CleanupVillagers();
 
+        if (villagers.Count == 0 || streamingIdleCount <= 0)
+            return;
+
+        // Build candidate list of villagers we can push to Idle
         List<Villager> candidates = new List<Villager>();
         foreach (var v in villagers)
         {
             if (v == null) continue;
+
             if (v.currentState == PersonState.PhoneAddiction ||
                 v.currentState == PersonState.Destructive)
                 continue;
@@ -239,7 +263,10 @@ public class PopulationManager : MonoBehaviour
             candidates.Add(v);
         }
 
-        // Closest villagers to the phone become Idle
+        if (candidates.Count == 0)
+            return;
+
+        // Sort by distance to the origin point
         candidates.Sort((a, b) =>
         {
             float da = (a.transform.position - origin).sqrMagnitude;
@@ -277,7 +304,7 @@ public class PopulationManager : MonoBehaviour
         return count;
     }
 
-    // NEW: number of villagers still actively working
+    // Number of villagers still actively working
     public int GetWorkingVillagerCount()
     {
         CleanupVillagers();
@@ -289,6 +316,8 @@ public class PopulationManager : MonoBehaviour
         }
         return count;
     }
+
+    // Villagers who are still "active" (working or shifting attention)
     public int GetActiveVillagerCount()
     {
         CleanupVillagers();

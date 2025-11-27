@@ -10,6 +10,10 @@ public class Villager : MonoBehaviour
     public float moveSpeedVariation = 0.75f;
     public float closeEnoughDistance = 0.2f;
 
+    [Header("State Speed Modifiers")]
+    [Range(0.1f, 1f)]
+    public float shiftingAttentionSpeedMultiplier = 0.75f;
+
     [Header("Construction Contribution")]
     public float workEffortPerSecond = 10f;
 
@@ -180,11 +184,22 @@ public class Villager : MonoBehaviour
 
     private float GetCurrentSpeed()
     {
-        float mult = 1f;
-        if (populationManager != null)
-            mult = populationManager.globalSpeedMultiplier;
+        // Start from this villager's own base speed (with per-villager variation)
+        float speed = actualMoveSpeed;
 
-        return actualMoveSpeed * mult;
+        // Villagers who are "ShiftingAttention" move a bit slower
+        if (currentState == PersonState.ShiftingAttention)
+        {
+            speed *= shiftingAttentionSpeedMultiplier;
+        }
+
+        // Apply any global movement effect (e.g. Mainstream Media phone)
+        if (populationManager != null)
+        {
+            speed *= populationManager.globalSpeedMultiplier;
+        }
+
+        return speed;
     }
 
     private Building SelectBestBuilding()
@@ -227,6 +242,30 @@ public class Villager : MonoBehaviour
             return bestUnderConstruction;
 
         return bestAny;
+    }
+
+    private Building SelectNearestCompletedBuilding()
+    {
+        if (buildingManager == null || buildingManager.buildings == null || buildingManager.buildings.Count == 0)
+            return null;
+
+        Building best = null;
+        float bestDist = float.MaxValue;
+
+        foreach (var b in buildingManager.buildings)
+        {
+            if (b == null) continue;
+            if (b.currentState != BuildingState.Completed) continue;
+
+            float d = Vector2.Distance(transform.position, b.transform.position);
+            if (d < bestDist)
+            {
+                bestDist = d;
+                best = b;
+            }
+        }
+
+        return best;
     }
 
     private void PickNewWorkOffset()
@@ -312,6 +351,16 @@ public class Villager : MonoBehaviour
         targetPhone = phone;
         isPhoneChaser = true;
         frozenByPhone = false;
+    }
+
+    public void BecomeMediaInfluenced()
+    {
+        currentState = PersonState.ShiftingAttention;
+        UpdateVisuals();
+
+        // Apply global slowdown (e.g. half speed)
+        if (populationManager != null)
+            populationManager.ApplyMediaPhoneSlowdown(0.5f);
     }
 
     public void SetFrozenByPhone(bool frozen)
@@ -400,33 +449,61 @@ public class Villager : MonoBehaviour
 
     private void HandleBuildingDestruction(float dt)
     {
-        if (buildingManager == null || buildingManager.buildings == null)
-            return;
-
-        destructionTimer -= dt;
-        if (destructionTimer > 0f) return;
-
-        destructionTimer = 1.0f;
-
-        Building victim = null;
-        float bestDist = float.MaxValue;
-
-        foreach (var b in buildingManager.buildings)
+        if (buildingManager == null || buildingManager.buildings == null || buildingManager.buildings.Count == 0)
         {
-            if (b == null) continue;
-            if (b.currentState != BuildingState.Completed) continue;
-
-            float d = Vector2.Distance(transform.position, b.transform.position);
-            if (d < bestDist)
-            {
-                bestDist = d;
-                victim = b;
-            }
+            SetWalkingAnimation(false, 0f);
+            return;
         }
 
-        if (victim != null)
+        // Make sure we have a valid completed-building target
+        if (currentTargetBuilding == null || currentTargetBuilding.currentState != BuildingState.Completed)
         {
-            victim.TakeDamage(10f);
+            currentTargetBuilding = SelectNearestCompletedBuilding();
+            PickNewWorkOffset();
+        }
+
+        // No completed buildings to destroy → just stand still
+        if (currentTargetBuilding == null)
+        {
+            SetWalkingAnimation(false, 0f);
+            return;
+        }
+
+        // Walk over to the chosen completed building (same style as work logic)
+        Vector3 targetPos = currentTargetBuilding.transform.position + currentWorkOffset;
+        if (lockToGround)
+            targetPos.y = groundY;
+
+        Vector3 delta = targetPos - transform.position;
+        float dist = delta.magnitude;
+        float moveSpeed = GetCurrentSpeed();
+
+        if (dist > closeEnoughDistance)
+        {
+            // Still walking toward the building
+            Vector3 step = delta.normalized * moveSpeed * dt;
+            if (step.magnitude > dist)
+                step = delta;
+
+            transform.position += step;
+            SetWalkingAnimation(true, step.x);
+        }
+        else
+        {
+            // Reached the building: now deconstruct it at the same rate
+            // as one villager constructing (workEffortPerSecond).
+            SetWalkingAnimation(false, 0f);
+
+            if (currentTargetBuilding.currentState == BuildingState.Completed)
+            {
+                // Same magnitude as construction, but applied to TakeDamage()
+                currentTargetBuilding.TakeDamage(workEffortPerSecond * dt);
+            }
+            else
+            {
+                // If the building changed state (e.g. destroyed), retarget next frame
+                currentTargetBuilding = null;
+            }
         }
     }
 

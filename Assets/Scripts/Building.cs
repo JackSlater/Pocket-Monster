@@ -142,12 +142,19 @@ public class Building : MonoBehaviour
     /// </summary>
     public void TakeDamage(float amount)
     {
+        // Only allow destruction of completed buildings
         if (currentState != BuildingState.Completed)
             return;
 
-        // Simple destroy-on-hit model for now
-        currentState = BuildingState.Destroyed;
-        constructionProgress = 0f;
+        // Chip away at the building's "built" progress
+        constructionProgress -= amount;
+
+        if (constructionProgress <= 0f)
+        {
+            constructionProgress = 0f;
+            currentState = BuildingState.Destroyed;
+        }
+
         UpdateVisuals();
     }
 
